@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let html5QrCode = null;
   let activeTargetInput = null;
+  let isStartingScanner = false;
 
   poInput.focus();
 
@@ -51,64 +52,132 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  function showError(message) {
+    resultBox.classList.remove("d-none");
+    resultTitle.innerText = "❌ Lỗi";
+    resultTitle.className = "fw-bold mb-2 text-danger";
+    resultText.innerText = message;
+  }
+
   async function stopScanner() {
     if (html5QrCode) {
       try {
-        await html5QrCode.stop();
+        const state = html5QrCode.getState();
+
+        // 2 = SCANNING in html5-qrcode
+        if (state === 2) {
+          await html5QrCode.stop();
+        }
+
         await html5QrCode.clear();
       } catch (e) {
-        console.log("Scanner already stopped");
+        console.log("Stop scanner warning:", e);
       }
+
       html5QrCode = null;
     }
 
     scannerBox.classList.add("d-none");
     activeTargetInput = null;
+    isStartingScanner = false;
+  }
+
+  function getNextInput(targetInput) {
+  if (targetInput.id === "po_no") return barcodeInput;
+  if (targetInput.id === "barcode") return palletInput;
+  if (targetInput.id === "pallet_id") return qtyInput;
+  return null;
+  }
+
+  async function getBestCameraId() {
+    const cameras = await Html5Qrcode.getCameras();
+
+    if (!cameras || cameras.length === 0) {
+      throw new Error("Không tìm thấy camera trên thiết bị");
+    }
+
+    // Ưu tiên camera sau nếu tên có các keyword phổ biến
+    const backCamera = cameras.find(function (camera) {
+      const label = (camera.label || "").toLowerCase();
+      return (
+        label.includes("back") ||
+        label.includes("rear") ||
+        label.includes("environment") ||
+        label.includes("camera 0")
+      );
+    });
+
+    return backCamera ? backCamera.id : cameras[cameras.length - 1].id;
   }
 
   async function startScanner(targetInputId) {
+    if (isStartingScanner) return;
+
+    isStartingScanner = true;
     activeTargetInput = document.getElementById(targetInputId);
 
     scannerBox.classList.remove("d-none");
+    resultBox.classList.add("d-none");
 
     if (html5QrCode) {
       await stopScanner();
       scannerBox.classList.remove("d-none");
     }
 
-    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode = new Html5Qrcode("reader", {
+      verbose: false
+    });
 
     const config = {
       fps: 10,
-      qrbox: { width: 250, height: 180 },
-      rememberLastUsedCamera: true
+      qrbox: function (viewfinderWidth, viewfinderHeight) {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+        const qrboxSize = Math.floor(minEdge * 0.75);
+        return {
+          width: qrboxSize,
+          height: qrboxSize
+        };
+      },
+      aspectRatio: 1.777778
     };
 
     try {
+      const cameraId = await getBestCameraId();
+
       await html5QrCode.start(
-        { facingMode: "environment" },
+        cameraId,
         config,
         async function onScanSuccess(decodedText) {
-          if (activeTargetInput) {
-            activeTargetInput.value = decodedText;
-            beep();
+          if (!activeTargetInput) return;
 
-            if (activeTargetInput.id === "barcode") {
-              palletInput.focus();
-            } else if (activeTargetInput.id === "pallet_id") {
-              qtyInput.focus();
-            }
+          activeTargetInput.value = decodedText;
+          beep();
 
-            await stopScanner();
+          const nextInput = getNextInput(activeTargetInput);
+
+          await stopScanner();
+
+          if (nextInput) {
+            setTimeout(function () {
+              nextInput.focus();
+            }, 200);
           }
         },
         function onScanFailure() {
           // ignore scan failure
         }
       );
+
+      isStartingScanner = false;
+
     } catch (err) {
-      scannerBox.classList.add("d-none");
-      alert("Không mở được camera. Kiểm tra quyền camera hoặc dùng HTTPS.");
+      console.error("Camera error:", err);
+
+      await stopScanner();
+
+      showError(
+        "Không mở được camera. Hãy mở bằng Safari/Chrome thật, cấp quyền Camera, và đảm bảo đang dùng HTTPS."
+      );
     }
   }
 
