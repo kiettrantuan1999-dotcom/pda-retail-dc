@@ -1,1 +1,6 @@
-{% extends "base.html" %}{% block content %}<h4 class="fw-bold">Audit</h4><input id="auditLocation" class="form-control form-control-lg scan-input mb-3" placeholder="Scan Location" autofocus><button class="btn btn-secondary btn-lg w-100 mb-3" onclick="loadAuditLocation()">LOAD LOCATION</button><div id="auditRows" class="mb-3"></div><form id="auditForm" class="pda-form"><input name="location_id" id="audit_location_id" class="form-control form-control-lg scan-input mb-3" placeholder="Location" required><input name="sku" class="form-control form-control-lg scan-input mb-3" placeholder="SKU" required><input name="physical_qty" type="number" min="0" class="form-control form-control-lg scan-input mb-3" placeholder="Physical Qty" required><input name="note" class="form-control form-control-lg scan-input mb-3" placeholder="Note"><div class="form-check form-switch mb-3"><input name="update_inventory" value="true" class="form-check-input" type="checkbox" id="update_inventory"><label class="form-check-label" for="update_inventory">Update inventory theo physical qty</label></div><button class="btn btn-danger btn-lg w-100 p-3">CONFIRM AUDIT</button></form>{% endblock %}{% block scripts %}<script src="/static/js/audit.js"></script><script>bindAjaxForm('auditForm','/api/audit/confirm');</script>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<h4 class="fw-bold">Kiểm đếm</h4>
+<div class="alert alert-info">Module này sẽ được hoàn thiện ở sprint tiếp theo.</div>
+<a class="btn btn-secondary btn-lg w-100" href="/">Về trang chủ</a>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h4 class="fw-bold">Quản lý user</h4>
+<div class="card p-2 table-responsive">
+<table class="table table-sm table-pda">
+<thead><tr><th>User</th><th>Role</th><th>Active</th><th>Ngày tạo</th></tr></thead>
+<tbody>
+{% for u in users %}
+<tr>
+<td>{{ u.user_name }}</td><td>{{ u.role }}</td><td>{{ u.is_active }}</td><td>{{ u.created_at }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<h5 class="mt-4">Vai trò</h5>
+<div class="card p-2">
+{% for r in roles %}
+<div class="border-bottom py-2"><b>{{ r.role_code }}</b> - {{ r.role_name }}<br><span class="text-muted">{{ r.description }}</span></div>
+{% endfor %}
+</div>
+{% endblock %}

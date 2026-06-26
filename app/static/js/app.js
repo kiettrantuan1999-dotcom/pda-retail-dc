@@ -1,4 +1,13 @@
-function showToast(msg,ok=true){const el=document.getElementById('appToast');const body=document.getElementById('toastBody');body.innerText=msg;el.className='toast '+(ok?'text-bg-success':'text-bg-danger');new bootstrap.Toast(el).show();}
-function focusFirst(){const x=document.querySelector('input[autofocus], .scan-input');if(x){setTimeout(()=>x.focus(),100);}}
-window.addEventListener('load',focusFirst);
-function bindAjaxForm(formId,url){const form=document.getElementById(formId);if(!form)return;form.addEventListener('submit',async(e)=>{e.preventDefault();const btn=form.querySelector('button');if(btn)btn.disabled=true;try{const res=await fetch(url,{method:'POST',body:new FormData(form)});const data=await res.json();if(data.ok){showToast('OK');form.reset();focusFirst();}else{showToast(data.error||'Error',false);}}catch(err){showToast(String(err),false);}finally{if(btn)btn.disabled=false;}});}
+function showToast(msg, ok=true){
+  const el = document.getElementById("appToast");
+  const body = document.getElementById("toastBody");
+  if(!el || !body) return;
+  body.innerText = msg;
+  el.className = "toast " + (ok ? "text-bg-success" : "text-bg-danger");
+  new bootstrap.Toast(el).show();
+}
+function focusFirst(){
+  const x = document.querySelector("input[autofocus], .scan-input");
+  if(x){ setTimeout(()=>x.focus(), 100); }
+}
+window.addEventListener("load", focusFirst);
