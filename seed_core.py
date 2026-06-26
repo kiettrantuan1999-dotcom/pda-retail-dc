@@ -1,1 +1,1 @@
-from scripts.seed_core import *
+from scripts.seed_data import *
