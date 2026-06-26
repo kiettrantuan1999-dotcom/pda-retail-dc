@@ -255,3 +255,48 @@ class ErrorLog(Base):
     ip_address: Mapped[str] = mapped_column(String(100), default="")
     device_info: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    
+# =========================
+# SPRINT 2 - GR DATABASE
+# =========================
+
+class SupplierMaster(Base):
+    __tablename__ = "supplier_master"
+
+    supplier_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    supplier_code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PoHeader(Base):
+    __tablename__ = "po_header"
+
+    po_no: Mapped[str] = mapped_column(String(100), primary_key=True)
+    supplier_code: Mapped[str] = mapped_column(String(100), index=True, default="")
+    supplier_name: Mapped[str] = mapped_column(String(255), default="")
+    po_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_GR", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PoDetail(Base):
+    __tablename__ = "po_detail"
+
+    po_detail_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    po_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    barcode: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    qty_order: Mapped[int] = mapped_column(Integer, default=0)
+    qty_received: Mapped[int] = mapped_column(Integer, default=0)
+    qty_remaining: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_GR", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("po_no", "sku", name="uq_po_sku"),
+    )
