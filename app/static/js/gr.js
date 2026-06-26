@@ -10,6 +10,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const resultTitle = document.getElementById("resultTitle");
   const resultText = document.getElementById("resultText");
 
+  const scannerBox = document.getElementById("scannerBox");
+  const closeScannerBtn = document.getElementById("closeScannerBtn");
+
+  let html5QrCode = null;
+  let activeTargetInput = null;
+
   poInput.focus();
 
   function moveNextOnEnter(current, next) {
@@ -24,6 +30,98 @@ document.addEventListener("DOMContentLoaded", function () {
   moveNextOnEnter(poInput, barcodeInput);
   moveNextOnEnter(barcodeInput, palletInput);
   moveNextOnEnter(palletInput, qtyInput);
+
+  function beep() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.frequency.value = 880;
+      oscillator.type = "sine";
+
+      gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.12);
+    } catch (e) {
+      console.log("Beep not supported");
+    }
+  }
+
+  async function stopScanner() {
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+        await html5QrCode.clear();
+      } catch (e) {
+        console.log("Scanner already stopped");
+      }
+      html5QrCode = null;
+    }
+
+    scannerBox.classList.add("d-none");
+    activeTargetInput = null;
+  }
+
+  async function startScanner(targetInputId) {
+    activeTargetInput = document.getElementById(targetInputId);
+
+    scannerBox.classList.remove("d-none");
+
+    if (html5QrCode) {
+      await stopScanner();
+      scannerBox.classList.remove("d-none");
+    }
+
+    html5QrCode = new Html5Qrcode("reader");
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 180 },
+      rememberLastUsedCamera: true
+    };
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        async function onScanSuccess(decodedText) {
+          if (activeTargetInput) {
+            activeTargetInput.value = decodedText;
+            beep();
+
+            if (activeTargetInput.id === "barcode") {
+              palletInput.focus();
+            } else if (activeTargetInput.id === "pallet_id") {
+              qtyInput.focus();
+            }
+
+            await stopScanner();
+          }
+        },
+        function onScanFailure() {
+          // ignore scan failure
+        }
+      );
+    } catch (err) {
+      scannerBox.classList.add("d-none");
+      alert("Không mở được camera. Kiểm tra quyền camera hoặc dùng HTTPS.");
+    }
+  }
+
+  document.querySelectorAll(".scan-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const target = btn.getAttribute("data-target");
+      startScanner(target);
+    });
+  });
+
+  closeScannerBtn.addEventListener("click", function () {
+    stopScanner();
+  });
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
