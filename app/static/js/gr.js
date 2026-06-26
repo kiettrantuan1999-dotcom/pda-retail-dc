@@ -32,6 +32,13 @@ document.addEventListener("DOMContentLoaded", function () {
   moveNextOnEnter(barcodeInput, palletInput);
   moveNextOnEnter(palletInput, qtyInput);
 
+  function getNextInput(targetInput) {
+    if (targetInput.id === "po_no") return barcodeInput;
+    if (targetInput.id === "barcode") return palletInput;
+    if (targetInput.id === "pallet_id") return qtyInput;
+    return null;
+  }
+
   function beep() {
     try {
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -62,16 +69,15 @@ document.addEventListener("DOMContentLoaded", function () {
   async function stopScanner() {
     if (html5QrCode) {
       try {
-        const state = html5QrCode.getState();
+        await html5QrCode.stop();
+      } catch (e) {
+        console.log("Scanner stop ignored:", e);
+      }
 
-        // 2 = SCANNING in html5-qrcode
-        if (state === 2) {
-          await html5QrCode.stop();
-        }
-
+      try {
         await html5QrCode.clear();
       } catch (e) {
-        console.log("Stop scanner warning:", e);
+        console.log("Scanner clear ignored:", e);
       }
 
       html5QrCode = null;
@@ -80,34 +86,6 @@ document.addEventListener("DOMContentLoaded", function () {
     scannerBox.classList.add("d-none");
     activeTargetInput = null;
     isStartingScanner = false;
-  }
-
-  function getNextInput(targetInput) {
-  if (targetInput.id === "po_no") return barcodeInput;
-  if (targetInput.id === "barcode") return palletInput;
-  if (targetInput.id === "pallet_id") return qtyInput;
-  return null;
-  }
-
-  async function getBestCameraId() {
-    const cameras = await Html5Qrcode.getCameras();
-
-    if (!cameras || cameras.length === 0) {
-      throw new Error("Không tìm thấy camera trên thiết bị");
-    }
-
-    // Ưu tiên camera sau nếu tên có các keyword phổ biến
-    const backCamera = cameras.find(function (camera) {
-      const label = (camera.label || "").toLowerCase();
-      return (
-        label.includes("back") ||
-        label.includes("rear") ||
-        label.includes("environment") ||
-        label.includes("camera 0")
-      );
-    });
-
-    return backCamera ? backCamera.id : cameras[cameras.length - 1].id;
   }
 
   async function startScanner(targetInputId) {
@@ -124,28 +102,17 @@ document.addEventListener("DOMContentLoaded", function () {
       scannerBox.classList.remove("d-none");
     }
 
-    html5QrCode = new Html5Qrcode("reader", {
-      verbose: false
-    });
+    html5QrCode = new Html5Qrcode("reader");
 
     const config = {
       fps: 10,
-      qrbox: function (viewfinderWidth, viewfinderHeight) {
-        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-        const qrboxSize = Math.floor(minEdge * 0.75);
-        return {
-          width: qrboxSize,
-          height: qrboxSize
-        };
-      },
+      qrbox: { width: 260, height: 260 },
       aspectRatio: 1.777778
     };
 
     try {
-      const cameraId = await getBestCameraId();
-
       await html5QrCode.start(
-        cameraId,
+        { facingMode: "environment" },
         config,
         async function onScanSuccess(decodedText) {
           if (!activeTargetInput) return;
@@ -164,7 +131,7 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         },
         function onScanFailure() {
-          // ignore scan failure
+          // ignore
         }
       );
 
