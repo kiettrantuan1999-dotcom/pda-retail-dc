@@ -1,1 +1,22 @@
-body{background:#f4f6f8}.login-bg{background:#111827}.card{border-radius:18px}.pda-menu{width:100%;min-height:120px;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center;border-radius:18px}.scan-input{height:64px;font-size:24px;font-weight:700;border-radius:14px}.pda-form button{font-size:24px;font-weight:800;border-radius:14px}.table-pda{font-size:14px}.badge-big{font-size:15px}
+body { background:#f4f6f8; }
+.login-bg { background:#111827; }
+.card { border-radius:18px; }
+.pda-menu {
+  width:100%;
+  min-height:120px;
+  font-size:20px;
+  font-weight:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:18px;
+  white-space:normal;
+}
+.scan-input {
+  height:64px;
+  font-size:24px;
+  font-weight:700;
+  border-radius:14px;
+}
+.table-pda { font-size:13px; }
+.kpi { font-size:34px; font-weight:900; }

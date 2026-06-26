@@ -1,1 +1,6 @@
-{% extends "base.html" %}{% block content %}<h4 class="fw-bold">Inventory Check</h4><input id="invQ" class="form-control form-control-lg scan-input mb-3" placeholder="Search SKU / Barcode / Location" autofocus><button class="btn btn-info btn-lg w-100 mb-3" onclick="searchInventory()">SEARCH</button><div id="invResult"></div>{% endblock %}{% block scripts %}<script src="/static/js/inventory.js"></script>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<h4 class="fw-bold">Kiểm tra tồn</h4>
+<div class="alert alert-info">Module này sẽ được hoàn thiện ở sprint tiếp theo.</div>
+<a class="btn btn-secondary btn-lg w-100" href="/">Về trang chủ</a>
+{% endblock %}
