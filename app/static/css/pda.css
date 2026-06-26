@@ -20,3 +20,20 @@ body { background:#f4f6f8; }
 }
 .table-pda { font-size:13px; }
 .kpi { font-size:34px; font-weight:900; }
+
+.scan-input {
+  height: 58px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.pda-action-btn {
+  height: 60px;
+  font-size: 18px;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+.card {
+  border-radius: 14px;
+}

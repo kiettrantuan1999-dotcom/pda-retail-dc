@@ -1,6 +1,91 @@
 {% extends "base.html" %}
+
 {% block content %}
-<h4 class="fw-bold">Nhận hàng</h4>
-<div class="alert alert-info">Module này sẽ được hoàn thiện ở sprint tiếp theo.</div>
-<a class="btn btn-secondary btn-lg w-100" href="/">Về trang chủ</a>
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-1">📦 Nhận hàng - GR</h4>
+  <div class="text-muted small">Scan PO, Barcode, PA và nhập số lượng nhận</div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+
+    <form id="grForm">
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">PO No</label>
+        <input
+          type="text"
+          class="form-control form-control-lg scan-input"
+          id="po_no"
+          name="po_no"
+          placeholder="Scan hoặc nhập PO"
+          autocomplete="off"
+          required
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Barcode</label>
+        <input
+          type="text"
+          class="form-control form-control-lg scan-input"
+          id="barcode"
+          name="barcode"
+          placeholder="Scan barcode sản phẩm"
+          autocomplete="off"
+          required
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Pallet / PA</label>
+        <input
+          type="text"
+          class="form-control form-control-lg scan-input"
+          id="pallet_id"
+          name="pallet_id"
+          placeholder="Scan mã PA"
+          autocomplete="off"
+          required
+        >
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-bold">Qty GR</label>
+        <input
+          type="number"
+          class="form-control form-control-lg scan-input"
+          id="qty_gr"
+          name="qty_gr"
+          placeholder="Nhập số lượng"
+          min="1"
+          required
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 pda-action-btn">
+        CONFIRM GR
+      </button>
+
+    </form>
+
+  </div>
+</div>
+
+<div id="resultBox" class="card mt-3 d-none">
+  <div class="card-body">
+    <h5 id="resultTitle" class="fw-bold mb-2"></h5>
+    <div id="resultText" class="small"></div>
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="/" class="btn btn-outline-secondary w-100">⬅ Về Home</a>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/gr.js"></script>
 {% endblock %}
