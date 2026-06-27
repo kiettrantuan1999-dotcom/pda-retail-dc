@@ -63,6 +63,21 @@ def putaway_tasks(db: Session = Depends(get_db)):
         })
     except Exception as e:
         return fail(e)
+
+@router.get("/putaway/pallet/{pallet_id}")
+def get_putaway_by_pallet(
+    pallet_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = svc.get_putaway_by_pallet(
+            db,
+            pallet_id.strip()
+        )
+        return ok(result)
+
+    except Exception as e:
+        return fail(e)
     
 @router.post("/putaway/confirm")
 def putaway_confirm(

@@ -61,10 +61,18 @@ class ProductMaster(Base):
 
     sku: Mapped[str] = mapped_column(String(100), primary_key=True)
     barcode: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(255), default="")
     uom: Mapped[str] = mapped_column(String(50), default="EA")
     category: Mapped[str] = mapped_column(String(100), default="")
+
+class SkuMaster(Base):
+    __tablename__ = "sku_master"
+
+    sku: Mapped[str] = mapped_column(String(100), primary_key=True)
     pcb: Mapped[int] = mapped_column(Integer, default=1)
+    mhu: Mapped[int] = mapped_column(Integer, default=1)
+    sku_type: Mapped[str] = mapped_column(String(50), default="ODD")
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class LocationMaster(Base):
@@ -74,6 +82,49 @@ class LocationMaster(Base):
     zone: Mapped[str] = mapped_column(String(100), default="")
     location_type: Mapped[str] = mapped_column(String(100), default="PICK_FACE")
     status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+    max_capacity: Mapped[int] = mapped_column(Integer, default=1)
+class CategoryAisleMaster(Base):
+    __tablename__ = "category_aisle_master"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        index=True,
+        nullable=False,
+    )
+
+    zone: Mapped[str] = mapped_column(
+        String(50),
+        default="PICK_FACE",
+    )
+
+    aisle: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    priority: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+    )
+
+    note: Mapped[str] = mapped_column(
+        Text,
+        default="",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "category",
+            "aisle",
+            name="uq_category_aisle",
+        ),
+    )
 
 
 # =========================
@@ -300,3 +351,22 @@ class PoDetail(Base):
     __table_args__ = (
         UniqueConstraint("po_no", "sku", name="uq_po_sku"),
     )
+
+class MasterDataIssue(Base):
+    __tablename__ = "master_data_issue"
+
+    issue_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    issue_type: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), index=True, default="")
+    barcode: Mapped[str] = mapped_column(String(100), index=True, default="")
+    pallet_id: Mapped[str] = mapped_column(String(100), index=True, default="")
+    location_id: Mapped[str] = mapped_column(String(100), index=True, default="")
+    source_module: Mapped[str] = mapped_column(String(100), default="PUTAWAY", index=True)
+    source_ref_id: Mapped[str] = mapped_column(String(100), default="", index=True)
+    status: Mapped[str] = mapped_column(String(50), default="OPEN", index=True)
+    created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    resolved_by: Mapped[str] = mapped_column(String(100), default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+print("TABLES FILE LOADED:", __file__)

@@ -26,8 +26,10 @@ def root(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
+
     user = current_user(request)
     role = user.get("role", "worker")
+
     return templates.TemplateResponse(
         "home.html",
         {
@@ -43,7 +45,13 @@ def root(request: Request):
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+        },
+    )
 
 
 @router.get("/gr", response_class=HTMLResponse)
@@ -51,15 +59,14 @@ def gr_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("gr.html", {"request": request, "user": current_user(request)})
 
-
-@router.get("/putaway", response_class=HTMLResponse)
-def putaway_page(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-    return templates.TemplateResponse("putaway.html", {"request": request, "user": current_user(request)})
+    return templates.TemplateResponse(
+        "gr.html",
+        {
+            "request": request,
+            "user": current_user(request),
+        },
+    )
 
 
 @router.get("/pack", response_class=HTMLResponse)
@@ -67,7 +74,14 @@ def pack_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("pack.html", {"request": request, "user": current_user(request)})
+
+    return templates.TemplateResponse(
+        "pack.html",
+        {
+            "request": request,
+            "user": current_user(request),
+        },
+    )
 
 
 @router.get("/inventory", response_class=HTMLResponse)
@@ -75,7 +89,14 @@ def inventory_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("inventory.html", {"request": request, "user": current_user(request)})
+
+    return templates.TemplateResponse(
+        "inventory.html",
+        {
+            "request": request,
+            "user": current_user(request),
+        },
+    )
 
 
 @router.get("/audit", response_class=HTMLResponse)
@@ -83,7 +104,14 @@ def audit_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("audit.html", {"request": request, "user": current_user(request)})
+
+    return templates.TemplateResponse(
+        "audit.html",
+        {
+            "request": request,
+            "user": current_user(request),
+        },
+    )
 
 
 @router.get("/management", response_class=HTMLResponse)
@@ -94,6 +122,7 @@ def management_page(request: Request, db: Session = Depends(get_db)):
 
     user = current_user(request)
     role = user.get("role", "worker")
+
     if not has_permission(role, "DASHBOARD_VIEW"):
         return RedirectResponse("/", status_code=302)
 
@@ -106,7 +135,11 @@ def management_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         "management.html",
-        {"request": request, "user": user, "kpi": kpi},
+        {
+            "request": request,
+            "user": user,
+            "kpi": kpi,
+        },
     )
 
 
@@ -118,15 +151,32 @@ def logs_page(request: Request, db: Session = Depends(get_db)):
 
     user = current_user(request)
     role = user.get("role", "worker")
+
     if not has_permission(role, "OPERATION_LOG_VIEW"):
         return RedirectResponse("/", status_code=302)
 
-    operations = db.query(OperationLog).order_by(OperationLog.log_id.desc()).limit(100).all()
-    errors = db.query(ErrorLog).order_by(ErrorLog.error_id.desc()).limit(50).all()
+    operations = (
+        db.query(OperationLog)
+        .order_by(OperationLog.log_id.desc())
+        .limit(100)
+        .all()
+    )
+
+    errors = (
+        db.query(ErrorLog)
+        .order_by(ErrorLog.error_id.desc())
+        .limit(50)
+        .all()
+    )
 
     return templates.TemplateResponse(
         "logs.html",
-        {"request": request, "user": user, "operations": operations, "errors": errors},
+        {
+            "request": request,
+            "user": user,
+            "operations": operations,
+            "errors": errors,
+        },
     )
 
 
@@ -138,12 +188,28 @@ def users_page(request: Request, db: Session = Depends(get_db)):
 
     user = current_user(request)
     role = user.get("role", "worker")
+
     if not has_permission(role, "USER_MANAGE"):
         return RedirectResponse("/", status_code=302)
 
-    users = db.query(AppUser).order_by(AppUser.user_id.asc()).all()
-    roles = db.query(AppRole).order_by(AppRole.role_id.asc()).all()
+    users = (
+        db.query(AppUser)
+        .order_by(AppUser.user_id.asc())
+        .all()
+    )
+
+    roles = (
+        db.query(AppRole)
+        .order_by(AppRole.role_id.asc())
+        .all()
+    )
+
     return templates.TemplateResponse(
         "users.html",
-        {"request": request, "user": user, "users": users, "roles": roles},
+        {
+            "request": request,
+            "user": user,
+            "users": users,
+            "roles": roles,
+        },
     )

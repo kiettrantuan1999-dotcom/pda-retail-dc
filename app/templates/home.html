@@ -1,25 +1,97 @@
 {% extends "base.html" %}
+
 {% block content %}
+
 <div class="mb-3">
-  <h4 class="fw-bold mb-0">Xin chào, {{ user.user_name }}</h4>
-  <div class="text-muted">Vai trò: {{ role_label }}</div>
+    <h4 class="fw-bold mb-0">
+        Xin chào, {{ user.user_name }}
+    </h4>
+
+    <div class="text-muted">
+        Vai trò: {{ role_label }}
+    </div>
 </div>
 
 <div class="row g-3">
-  <div class="col-6"><a class="btn btn-primary pda-menu" href="/gr">📦<br>NHẬN HÀNG</a></div>
-  <div class="col-6"><a class="btn btn-success pda-menu" href="/putaway">📍<br>CẤT HÀNG</a></div>
-  <div class="col-6"><a class="btn btn-warning pda-menu" href="/pack">🚚<br>ĐÓNG HÀNG</a></div>
-  <div class="col-6"><a class="btn btn-info pda-menu" href="/inventory">📊<br>KIỂM TRA TỒN</a></div>
-  <div class="col-12"><a class="btn btn-danger pda-menu" href="/audit">📝<br>KIỂM ĐẾM</a></div>
 
-  {% if can_dashboard %}
-  <div class="col-12"><a class="btn btn-dark pda-menu" href="/management">📈<br>QUẢN LÝ</a></div>
-  {% endif %}
-  {% if can_logs %}
-  <div class="col-6"><a class="btn btn-secondary pda-menu" href="/logs">📋<br>NHẬT KÝ</a></div>
-  {% endif %}
-  {% if can_users %}
-  <div class="col-6"><a class="btn btn-outline-dark pda-menu" href="/users">👤<br>USER</a></div>
-  {% endif %}
+    <!-- GR -->
+    <div class="col-6">
+        <a class="btn btn-primary pda-menu" href="/gr">
+            📦<br>
+            NHẬN HÀNG
+        </a>
+    </div>
+
+    <!-- PUT AWAY -->
+    <div class="col-6">
+        <a class="btn btn-success pda-menu" href="/putaway">
+            📍<br>
+            CẤT HÀNG
+        </a>
+    </div>
+
+    <!-- PACK -->
+    <div class="col-6">
+        <a class="btn btn-warning pda-menu" href="/pack">
+            🚚<br>
+            ĐÓNG HÀNG
+        </a>
+    </div>
+
+    <!-- INVENTORY -->
+    <div class="col-6">
+        <a class="btn btn-info pda-menu" href="/inventory">
+            📊<br>
+            KIỂM TRA TỒN
+        </a>
+    </div>
+
+    <!-- AUDIT -->
+    <div class="col-12">
+        <a class="btn btn-danger pda-menu" href="/audit">
+            📝<br>
+            KIỂM ĐẾM
+        </a>
+    </div>
+
+    <!-- MASTER DATA -->
+    <div class="col-12">
+        <a class="btn btn-secondary pda-menu" href="/master-data/import">
+            ⚙️<br>
+            QUẢN TRỊ DỮ LIỆU
+        </a>
+    </div>
+
+    <!-- MANAGEMENT -->
+    {% if can_dashboard %}
+    <div class="col-12">
+        <a class="btn btn-dark pda-menu" href="/management">
+            📈<br>
+            QUẢN LÝ
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- LOG -->
+    {% if can_logs %}
+    <div class="col-6">
+        <a class="btn btn-secondary pda-menu" href="/logs">
+            📋<br>
+            NHẬT KÝ
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- USER -->
+    {% if can_users %}
+    <div class="col-6">
+        <a class="btn btn-outline-dark pda-menu" href="/users">
+            👤<br>
+            USER
+        </a>
+    </div>
+    {% endif %}
+
 </div>
+
 {% endblock %}
