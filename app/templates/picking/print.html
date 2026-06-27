@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="vi">
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<head>
+  <meta charset="UTF-8">
+  <title>Phiếu lấy hàng {{ header.do_no }}</title>
+
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 14mm 12mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      color: #000;
+      margin: 0;
+      padding: 0;
+    }
+
+    .print-actions {
+      margin-bottom: 10px;
+    }
+
+    .print-actions button {
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    @media print {
+      .print-actions {
+        display: none;
+      }
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .company {
+      font-weight: bold;
+      font-size: 15px;
+      text-transform: uppercase;
+    }
+
+    .company-info {
+      font-size: 12px;
+      line-height: 1.3;
+      margin-top: 2px;
+    }
+
+    .print-time {
+      font-size: 11px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .header-main {
+      display: grid;
+      grid-template-columns: 34% 32% 34%;
+      align-items: start;
+      margin-top: 18px;
+      margin-bottom: 18px;
+      column-gap: 10px;
+    }
+
+    .side-box {
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      text-align: center;
+      padding: 8px 0 10px 0;
+      min-height: 72px;
+    }
+
+    .side-label {
+      font-weight: bold;
+      font-size: 14px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .side-value {
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 3px;
+    }
+
+    .title-box {
+      text-align: center;
+      font-weight: bold;
+      line-height: 1.15;
+      padding-top: 0;
+    }
+
+    .title-main {
+      font-size: 29px;
+      text-transform: uppercase;
+    }
+
+    .title-type {
+      font-size: 23px;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .barcode-box {
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .barcode {
+      font-family: "Libre Barcode 128", "IDAutomationHC39M", "Courier New", monospace;
+      font-size: 42px;
+      line-height: 0.9;
+      letter-spacing: 0;
+    }
+
+    .barcode-text {
+      font-size: 13px;
+      margin-top: 4px;
+      letter-spacing: 1px;
+    }
+
+    .info-section {
+      display: grid;
+      grid-template-columns: 1fr;
+      row-gap: 4px;
+      margin-top: 8px;
+      margin-bottom: 12px;
+      max-width: 600px;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      column-gap: 6px;
+      line-height: 1.35;
+    }
+
+    .info-label {
+      font-weight: bold;
+    }
+
+    .summary-title {
+      border: 1.5px solid #000;
+      padding: 7px 8px;
+      font-weight: bold;
+      font-size: 14px;
+      margin: 12px 0 8px 0;
+      text-transform: uppercase;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    th,
+    td {
+      border: 1px solid #000;
+      padding: 4px 5px;
+      vertical-align: middle;
+    }
+
+    th {
+      text-align: center;
+      font-weight: bold;
+      background: #f1f1f1;
+    }
+
+    td.center {
+      text-align: center;
+    }
+
+    td.num {
+      text-align: right;
+    }
+
+    .total-row td {
+      font-weight: bold;
+      background: #f7f7f7;
+    }
+
+    .signature {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      column-gap: 18px;
+      margin-top: 26px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .signature-note {
+      margin-top: 5px;
+      font-weight: normal;
+      font-style: italic;
+    }
+
+    .signature-line {
+      margin-top: 70px;
+      border-bottom: 1px dotted #000;
+      height: 1px;
+    }
+
+    .footer {
+      margin-top: 20px;
+      text-align: right;
+      font-size: 12px;
+    }
+      .barcode-box svg {
+  width: 250px;
+  height: 70px;
+}
+
+.qr-box {
+  text-align: center;
+  margin-top: 10px;
+}
+
+#qrDo {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto;
+}
+
+.qr-text {
+  font-size: 11px;
+  margin-top: 4px;
+}
+  </style>
+</head>
+
+<body>
+
+<div class="print-actions">
+  <button onclick="window.print()">🖨️ In phiếu lấy hàng</button>
+</div>
+
+<div class="top">
+  <div>
+    <div class="company">
+      CÔNG TY CỔ PHẦN DỊCH VỤ THƯƠNG MẠI TỔNG HỢP WINCOMMERCE
+    </div>
+    <div class="company-info">
+      Địa chỉ: Số 23 Lê Duẩn, Phường Bến Nghé, Quận 1, Thành phố Hồ Chí Minh, Việt Nam
+    </div>
+    <div class="company-info">
+      Mã số thuế: 0104918404
+    </div>
+  </div>
+
+  <div class="print-time">
+    Supra WES, ngày in: <span id="printTime"></span>
+  </div>
+</div>
+
+<div class="header-main">
+
+  <div>
+    <div class="side-box">
+      <div class="side-label">Mã DO</div>
+      <div class="side-value">{{ header.do_no }}</div>
+    </div>
+
+    <div class="barcode-box">
+      <svg id="barcodeDo"></svg>
+      <div class="barcode-text">{{ header.do_no }}</div>
+    </div>
+  </div>
+
+  <div class="title-box">
+    <div class="title-main">PHIẾU LẤY</div>
+    <div class="title-main">HÀNG</div>
+
+    {% if header.pick_type == "CASE" %}
+      <div class="title-type">HÀNG CHẴN</div>
+    {% else %}
+      <div class="title-type">HÀNG LẺ</div>
+    {% endif %}
+  </div>
+
+  <div>
+  <div class="side-box">
+    <div class="side-label">Cửa hàng</div>
+    <div class="side-value">{{ header.store_id }}</div>
+  </div>
+
+  <div class="qr-box">
+    <div id="qrDo"></div>
+    <div class="qr-text">Quét để tra cứu DO</div>
+  </div>
+</div>
+
+</div>
+
+<div class="info-section">
+  <div class="info-row">
+    <div class="info-label">Diễn giải:</div>
+    <div>{{ header.do_no }}</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Kho xuất:</div>
+    <div>DC Da Nang - Site 1325</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Khách hàng:</div>
+    <div>WIN</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Cửa hàng:</div>
+    <div>{{ header.store_id }} - {{ header.store_name }}</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Loại phiếu:</div>
+    <div>
+      {% if header.pick_type == "CASE" %}
+        Hàng chẵn
+      {% else %}
+        Hàng lẻ
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Số tem cần in:</div>
+    <div>{{ total_label_qty }}</div>
+  </div>
+</div>
+
+<div class="summary-title">
+  {{ header.store_id }} - {{ header.do_no }} -
+  {% if header.pick_type == "CASE" %}
+    PHIẾU LẤY HÀNG CHẴN
+  {% else %}
+    PHIẾU LẤY HÀNG LẺ
+  {% endif %}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 5%;">STT</th>
+      <th style="width: 8%;">Thứ tự</th>
+      <th style="width: 14%;">Vị trí</th>
+      <th style="width: 12%;">Mã hàng</th>
+      <th>Tên hàng</th>
+      <th style="width: 10%;">Số lượng</th>
+      <th style="width: 7%;">ĐVT</th>
+      <th style="width: 7%;">PCB</th>
+      <th style="width: 8%;">Số tem</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% set total_qty = namespace(value=0) %}
+
+    {% for d in details %}
+      {% set total_qty.value = total_qty.value + (d.qty_pick or 0) %}
+
+      <tr>
+        <td class="center">{{ loop.index }}</td>
+        <td class="center">{{ d.pick_index }}</td>
+        <td class="center">
+          {% if d.location_id %}
+            {{ d.location_id }}
+          {% else %}
+            CHƯA CÓ VỊ TRÍ
+          {% endif %}
+        </td>
+        <td class="center">{{ d.sku }}</td>
+        <td>{{ d.product_name }}</td>
+        <td class="num">{{ d.qty_pick }}</td>
+        <td class="center">EA</td>
+        <td class="center">{{ d.pcb }}</td>
+        <td class="center">{{ d.label_qty }}</td>
+      </tr>
+    {% endfor %}
+
+    <tr class="total-row">
+      <td colspan="5" class="center">Tổng cộng</td>
+      <td class="num">{{ total_qty.value }}</td>
+      <td></td>
+      <td></td>
+      <td class="center">{{ total_label_qty }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="signature">
+  <div>
+    Thủ kho
+    <div class="signature-note">(Ký, họ tên)</div>
+    <div class="signature-line"></div>
+  </div>
+
+  <div>
+    Người lấy hàng
+    <div class="signature-note">(Ký, họ tên)</div>
+    <div class="signature-line"></div>
+  </div>
+
+  <div>
+    Người kiểm hàng
+    <div class="signature-note">(Ký, họ tên)</div>
+    <div class="signature-line"></div>
+  </div>
+
+  <div>
+    Quản lý kho
+    <div class="signature-note">(Ký, họ tên)</div>
+    <div class="signature-line"></div>
+  </div>
+</div>
+
+<div class="footer">
+  Trang 1/1
+</div>
+
+<script>
+  const now = new Date();
+
+  const printText =
+    String(now.getDate()).padStart(2, "0") + "/" +
+    String(now.getMonth() + 1).padStart(2, "0") + "/" +
+    now.getFullYear() + " " +
+    String(now.getHours()).padStart(2, "0") + ":" +
+    String(now.getMinutes()).padStart(2, "0") + ":" +
+    String(now.getSeconds()).padStart(2, "0");
+
+  document.getElementById("printTime").innerText = printText;
+
+  const doNo = "{{ header.do_no }}";
+
+  JsBarcode("#barcodeDo", doNo, {
+    format: "CODE128",
+    width: 2,
+    height: 55,
+    displayValue: false,
+    margin: 0
+  });
+
+  new QRCode(document.getElementById("qrDo"), {
+    text: window.location.origin + "/picking/{{ header.picking_id }}",
+    width: 100,
+    height: 100
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">📋 Phiếu lấy hàng</h4>
+  <div class="text-muted">Danh sách phiếu lấy hàng đã sinh từ DO</div>
+</div>
+
+{% if rows|length == 0 %}
+<div class="alert alert-warning">
+  Chưa có phiếu lấy hàng.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  {% for r in rows %}
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+
+        <div><b>DO:</b> {{ r.do_no }}</div>
+        <div><b>Cửa hàng:</b> {{ r.store_id }} - {{ r.store_name }}</div>
+
+        <div class="mt-2">
+          {% if r.pick_type == "CASE" %}
+            <span class="badge bg-primary">Chẵn</span>
+          {% else %}
+            <span class="badge bg-success">Lẻ</span>
+          {% endif %}
+
+          {% if r.status == "WAIT_PICK" %}
+            <span class="badge bg-warning text-dark">Chờ lấy hàng</span>
+          {% elif r.status == "DONE" %}
+            <span class="badge bg-success">Hoàn thành</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ r.status }}</span>
+          {% endif %}
+        </div>
+
+        <a href="/picking/{{ r.picking_id }}" class="btn btn-primary w-100 mt-3">
+          Xem phiếu lấy hàng
+        </a>
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="mt-3">
+  <a href="/" class="btn btn-secondary w-100">⬅ Về trang chủ</a>
+</div>
+
+{% endblock %}

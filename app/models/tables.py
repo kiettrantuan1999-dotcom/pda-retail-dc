@@ -83,6 +83,8 @@ class LocationMaster(Base):
     location_type: Mapped[str] = mapped_column(String(100), default="PICK_FACE")
     status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
     max_capacity: Mapped[int] = mapped_column(Integer, default=1)
+    pick_index: Mapped[int] = mapped_column(Integer, default=999999)
+
 class CategoryAisleMaster(Base):
     __tablename__ = "category_aisle_master"
 
@@ -229,15 +231,67 @@ class DoDetail(Base):
     __tablename__ = "do_detail"
 
     do_detail_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    wave: Mapped[str] = mapped_column(String(100), default="")
+    khung_gio: Mapped[str] = mapped_column(String(100), default="")
+    loai_giao: Mapped[str] = mapped_column(String(100), default="")
+    dc_site: Mapped[str] = mapped_column(String(100), default="")
+    sto_no: Mapped[str] = mapped_column(String(100), default="")
+    do_created_date: Mapped[str] = mapped_column(String(100), default="")
+
     do_no: Mapped[str] = mapped_column(String(100), index=True)
-    store_id: Mapped[str] = mapped_column(String(100))
-    store_name: Mapped[str] = mapped_column(String(255))
+    store_id: Mapped[str] = mapped_column(String(100), index=True)
+    store_name: Mapped[str] = mapped_column(String(255), default="")
+
     sku: Mapped[str] = mapped_column(String(100), index=True)
-    barcode: Mapped[str] = mapped_column(String(100), index=True)
+    barcode: Mapped[str] = mapped_column(String(100), index=True, default="")
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    uom: Mapped[str] = mapped_column(String(50), default="")
+
     qty_do: Mapped[int] = mapped_column(Integer)
     qty_packed: Mapped[int] = mapped_column(Integer, default=0)
     qty_remain: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(50), default="WAIT")
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
+
+
+class PickingHeader(Base):
+    __tablename__ = "picking_header"
+
+    picking_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    do_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    store_id: Mapped[str] = mapped_column(String(100), index=True)
+    store_name: Mapped[str] = mapped_column(String(255), default="")
+    pick_type: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("do_no", "store_id", "pick_type", name="uq_picking_header"),
+    )
+
+
+class PickingDetail(Base):
+    __tablename__ = "picking_detail"
+
+    picking_detail_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    picking_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    do_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    store_id: Mapped[str] = mapped_column(String(100), index=True)
+    store_name: Mapped[str] = mapped_column(String(255), default="")
+    sku: Mapped[str] = mapped_column(String(100), index=True)
+    barcode: Mapped[str] = mapped_column(String(100), index=True)
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    category: Mapped[str] = mapped_column(String(100), default="")
+    location_id: Mapped[str] = mapped_column(String(100), default="")
+    pick_index: Mapped[int] = mapped_column(Integer, default=999999)
+    qty_pick: Mapped[int] = mapped_column(Integer, default=0)
+    pcb: Mapped[int] = mapped_column(Integer, default=1)
+    mhu: Mapped[int] = mapped_column(Integer, default=1)
+    pick_type: Mapped[str] = mapped_column(String(50), index=True)
+    label_qty: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class PackLog(Base):

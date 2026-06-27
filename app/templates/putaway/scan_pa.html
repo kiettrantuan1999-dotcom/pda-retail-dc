@@ -32,9 +32,17 @@
   </div>
 </div>
 
-<div id="scannerBox" class="card mb-3 mt-3 d-none">
+<div id="scannerBox" class="scanner-box card mb-3 mt-3 d-none">
   <div class="card-body">
-    <div id="reader" style="width: 100%;"></div>
+    <div class="fw-bold mb-2">Đưa mã PA/Pallet vào khung camera</div>
+
+    <video
+      id="scannerVideo"
+      style="width: 100%; border-radius: 8px; background: #000;"
+      playsinline
+      muted
+    ></video>
+
     <button type="button" class="btn btn-danger w-100 mt-2" id="closeScannerBtn">
       Đóng camera
     </button>
@@ -51,7 +59,8 @@
   <a href="/" class="btn btn-secondary w-100">⬅ Về trang chủ</a>
 </div>
 
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
+<script src="/static/js/scanner_zxing.js"></script>
 <script src="/static/js/putaway_scan_pa.js"></script>
 
 {% endblock %}

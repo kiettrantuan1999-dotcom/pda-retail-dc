@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from app.routes import picking
+
 
 from app.core.config import SECRET_KEY
 from app.routes import pages, auth, api, putaway, master_data
@@ -21,3 +23,4 @@ app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(master_data.router)
 app.include_router(putaway.router)
+app.include_router(picking.router)

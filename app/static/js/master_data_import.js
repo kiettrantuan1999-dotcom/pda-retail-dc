@@ -84,4 +84,13 @@ document.addEventListener("DOMContentLoaded", function () {
       );
     });
   }
+  const importDoBtn = document.getElementById("importDoBtn");
+  if (importDoBtn) {
+    importDoBtn.addEventListener("click", function () {
+      uploadFile(
+        "/api/master-data/import/do-detail",
+        document.getElementById("doFile")
+      );
+    });
+  }
 });
