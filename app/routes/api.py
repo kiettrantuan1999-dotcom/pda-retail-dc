@@ -26,21 +26,73 @@ def fail(e: Exception):
     return {"ok": False, "error": str(e)}
 
 
+@router.get("/gr/product/{barcode}")
+def gr_product_info(
+    barcode: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return ok(svc.get_product_scan_info(db, barcode.strip()))
+    except Exception as e:
+        return fail(e)
+
+
 @router.post("/gr/confirm")
 def gr_confirm(
     request: Request,
     po_no: str = Form(...),
     pallet_id: str = Form(...),
     barcode: str = Form(...),
-    qty_gr: int = Form(...),
+    carton_qty: int = Form(0),
+    loose_qty: int = Form(0),
+    pcb: int = Form(1),
+    qty_promo: int = Form(0),
     db: Session = Depends(get_db),
 ):
     try:
-        result = svc.confirm_gr(db, po_no.strip(), pallet_id.strip(), barcode.strip(), qty_gr, username(request))
+        result = svc.confirm_gr(
+            db=db,
+            po_no=po_no.strip(),
+            pallet_id=pallet_id.strip(),
+            barcode=barcode.strip(),
+            carton_qty=carton_qty,
+            loose_qty=loose_qty,
+            pcb=pcb,
+            qty_promo=qty_promo,
+            user_name=username(request),
+        )
         return ok(result)
     except Exception as e:
         db.rollback()
         return fail(e)
+
+@router.get("/gr/history/{po_no}")
+def gr_history(
+    po_no: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        rows = svc.get_gr_history_by_po(db, po_no.strip())
+        return ok({
+            "rows": [
+                {
+                    "queue_id": r.queue_id,
+                    "po_no": r.po_no,
+                    "pallet_id": r.pallet_id,
+                    "sku": r.sku,
+                    "barcode": r.barcode,
+                    "qty_gr": r.qty_gr,
+                    "qty_promo": 0,
+                    "qty_total": r.qty_gr or 0,
+                    "qty_remain_putaway": r.qty_remain_putaway,
+                    "flow_status": r.flow_status,
+                }
+                for r in rows
+            ]
+        })
+    except Exception as e:
+        return fail(e)
+
     
 @router.get("/putaway/tasks")
 def putaway_tasks(db: Session = Depends(get_db)):

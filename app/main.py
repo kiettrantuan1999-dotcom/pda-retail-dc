@@ -8,7 +8,7 @@ from app.routes import audit
 from app.routes import admin
 from app.routes import staging
 from app.core.config import SECRET_KEY
-from app.routes import pages, auth, api, putaway, master_data, inventory
+from app.routes import pages, auth, api, putaway, master_data, inventory, pa_label
 from app.middleware.error_middleware import ErrorLoggingMiddleware
 
 app = FastAPI(
@@ -33,3 +33,4 @@ app.include_router(supervisor.router)
 app.include_router(audit.router)
 app.include_router(admin.router)
 app.include_router(staging.router)
+app.include_router(pa_label.router)

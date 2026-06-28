@@ -1,10 +1,90 @@
 {% extends "base.html" %}
 
+
+{% block styles %}
+<style>
+  .scanner-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scanner-modal.d-none {
+    display: none !important;
+  }
+
+  .scanner-header {
+    height: 72px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.92);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  .scanner-title {
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  .scanner-subtitle {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .scanner-reader-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #reader {
+    width: 100vw !important;
+    height: calc(100vh - 124px) !important;
+    background: #000;
+  }
+
+  #reader video {
+    width: 100vw !important;
+    height: calc(100vh - 124px) !important;
+    object-fit: cover !important;
+  }
+
+  .scanner-frame {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(78vw, 460px);
+    height: min(34vh, 220px);
+    transform: translate(-50%, -50%);
+    border: 3px solid rgba(255, 255, 255, 0.95);
+    border-radius: 18px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+  }
+
+  .scanner-footer {
+    height: 52px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.72);
+    background: rgba(0, 0, 0, 0.92);
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <div class="mb-3">
   <h4 class="fw-bold mb-1">📦 Nhận hàng - GR</h4>
-  <div class="text-muted small">Scan PO, Barcode, PA và nhập số lượng nhận</div>
+  <div class="text-muted small">Scan 1 PO, sau đó scan liên tục nhiều PA / Barcode. Số lượng được tính tự động: PCB × thùng chẵn + kiện lẻ.</div>
 </div>
 
 <div class="card shadow-sm">
@@ -24,28 +104,9 @@
             autocomplete="off"
             required
           >
-          <button class="btn btn-outline-primary scan-btn" type="button" data-target="po_no">
-            📷
-          </button>
+          <button class="btn btn-outline-primary scan-btn" type="button" data-target="po_no">📷</button>
         </div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label fw-bold">Barcode</label>
-        <div class="input-group">
-          <input
-            type="text"
-            class="form-control form-control-lg scan-input"
-            id="barcode"
-            name="barcode"
-            placeholder="Scan barcode sản phẩm"
-            autocomplete="off"
-            required
-          >
-          <button class="btn btn-outline-primary scan-btn" type="button" data-target="barcode">
-            📷
-          </button>
-        </div>
+        <div class="form-text">PO sẽ được giữ lại sau mỗi lần Confirm để scan tiếp PA kế tiếp.</div>
       </div>
 
       <div class="mb-3">
@@ -60,42 +121,127 @@
             autocomplete="off"
             required
           >
-          <button class="btn btn-outline-primary scan-btn" type="button" data-target="pallet_id">
-            📷
-          </button>
+          <button class="btn btn-outline-primary scan-btn" type="button" data-target="pallet_id">📷</button>
         </div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label fw-bold">Qty GR</label>
-        <input
-          type="number"
-          class="form-control form-control-lg scan-input"
-          id="qty_gr"
-          name="qty_gr"
-          placeholder="Nhập số lượng"
-          min="1"
-          required
-        >
+        <label class="form-label fw-bold">Barcode sản phẩm</label>
+        <div class="input-group">
+          <input
+            type="text"
+            class="form-control form-control-lg scan-input"
+            id="barcode"
+            name="barcode"
+            placeholder="Scan barcode sản phẩm"
+            autocomplete="off"
+            required
+          >
+          <button class="btn btn-outline-primary scan-btn" type="button" data-target="barcode">📷</button>
+        </div>
       </div>
 
-      <button type="submit" class="btn btn-primary w-100 pda-action-btn">
-        CONFIRM GR
+      <div id="productInfoBox" class="alert alert-secondary d-none py-2 mb-3">
+        <div class="fw-bold" id="productName">-</div>
+        <div class="small">
+          SKU: <span id="productSku">-</span> · Barcode: <span id="productBarcode">-</span> · Master PCB: <span id="masterPcb">-</span>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-2">
+        <div class="col-4">
+          <label class="form-label fw-bold">PCB</label>
+          <input
+            type="number"
+            class="form-control form-control-lg scan-input"
+            id="pcb"
+            name="pcb"
+            placeholder="PCB"
+            min="1"
+            value="1"
+            required
+          >
+          <div class="form-text">Cho phép sửa nếu master sai.</div>
+        </div>
+        <div class="col-4">
+          <label class="form-label fw-bold">Thùng chẵn</label>
+          <input
+            type="number"
+            class="form-control form-control-lg scan-input"
+            id="carton_qty"
+            name="carton_qty"
+            placeholder="0"
+            min="0"
+            value="0"
+            required
+          >
+        </div>
+        <div class="col-4">
+          <label class="form-label fw-bold">Kiện lẻ</label>
+          <input
+            type="number"
+            class="form-control form-control-lg scan-input"
+            id="loose_qty"
+            name="loose_qty"
+            placeholder="0"
+            min="0"
+            value="0"
+            required
+          >
+        </div>
+      </div>
+
+      <div class="row g-2 align-items-end">
+        <div class="col-6">
+          <label class="form-label fw-bold">SL khuyến mãi</label>
+          <input
+            type="number"
+            class="form-control form-control-lg scan-input"
+            id="qty_promo"
+            name="qty_promo"
+            placeholder="0"
+            min="0"
+            value="0"
+          >
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Tổng nhập</label>
+          <input
+            type="number"
+            class="form-control form-control-lg fw-bold bg-light"
+            id="qty_total_preview"
+            value="0"
+            readonly
+          >
+          <div class="form-text">PCB × thùng chẵn + kiện lẻ + KM</div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 pda-action-btn mt-3">
+        XÁC NHẬN NHẬN HÀNG
       </button>
 
     </form>
 
   </div>
 </div>
-<div id="scannerBox" class="card mt-3 d-none">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <strong>📷 Camera Scanner</strong>
-      <button id="closeScannerBtn" class="btn btn-sm btn-outline-danger" type="button">
-        Đóng
-      </button>
+
+<div id="scannerBox" class="scanner-modal d-none">
+  <div class="scanner-header">
+    <div>
+      <div class="scanner-title">📷 Quét mã</div>
+      <div id="scannerTargetLabel" class="scanner-subtitle">Đưa mã vào khung để quét</div>
     </div>
+    <button id="closeScannerBtn" class="btn btn-danger" type="button">Đóng</button>
+  </div>
+
+  <div class="scanner-reader-wrap">
     <div id="reader"></div>
+    <div class="scanner-frame"></div>
+  </div>
+
+  <div class="scanner-footer">
+    Chạm vào ô PO / PA / Barcode để mở camera toàn màn hình. Quét xong hệ thống tự đóng camera.
   </div>
 </div>
 
@@ -103,6 +249,36 @@
   <div class="card-body">
     <h5 id="resultTitle" class="fw-bold mb-2"></h5>
     <div id="resultText" class="small"></div>
+  </div>
+</div>
+
+<div class="card mt-3 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h6 class="fw-bold mb-0">Danh sách PA đã GR theo PO</h6>
+        <div class="text-muted small" id="historySubtitle">Chưa chọn PO</div>
+      </div>
+      <button id="reloadHistoryBtn" class="btn btn-sm btn-outline-secondary" type="button">Tải lại</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>PA</th>
+            <th>SKU</th>
+            <th class="text-end">SL nhập</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="grHistoryBody">
+          <tr>
+            <td colspan="4" class="text-muted small">Scan PO để xem lịch sử GR.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
