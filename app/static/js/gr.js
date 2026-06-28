@@ -48,8 +48,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const looseQty = Math.max(numberValue(looseQtyInput), 0);
     const qtyPromo = Math.max(numberValue(qtyPromoInput), 0);
     const qtyGr = pcb * cartonQty + looseQty;
-    qtyTotalPreview.value = String(qtyGr + qtyPromo);
-    return { pcb, cartonQty, looseQty, qtyPromo, qtyGr, qtyTotal: qtyGr + qtyPromo };
+    const qtyTotal = qtyGr + qtyPromo;
+
+    qtyTotalPreview.value = String(qtyTotal);
+    return { pcb, cartonQty, looseQty, qtyPromo, qtyGr, qtyTotal };
   }
 
   [pcbInput, cartonQtyInput, looseQtyInput, qtyPromoInput].forEach(function (input) {
@@ -60,7 +62,10 @@ document.addEventListener("DOMContentLoaded", function () {
     current.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
-        if (next) next.focus();
+        if (next) {
+          next.focus();
+          if (next.select) next.select();
+        }
       }
     });
   }
@@ -131,6 +136,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function loadProductInfo() {
     const barcode = barcodeInput.value.trim();
+
     if (!barcode) {
       clearProductInfo();
       return;
@@ -240,35 +246,53 @@ document.addEventListener("DOMContentLoaded", function () {
     return "Đưa mã vào khung để quét";
   }
 
-  function buildScannerConfig(targetInputId) {
-    const formats = [];
+  function getFormats(targetInputId) {
+    if (!window.Html5QrcodeSupportedFormats) return [];
 
-    if (window.Html5QrcodeSupportedFormats) {
-      formats.push(
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
+    if (targetInputId === "barcode") {
+      return [
         Html5QrcodeSupportedFormats.EAN_13,
         Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.CODE_128,
         Html5QrcodeSupportedFormats.UPC_A,
         Html5QrcodeSupportedFormats.UPC_E,
         Html5QrcodeSupportedFormats.ITF
-      );
+      ];
     }
 
+    if (targetInputId === "pallet_id") {
+      return [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39
+      ];
+    }
+
+    return [
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.QR_CODE
+    ];
+  }
+
+  function buildScannerConfig(targetInputId) {
     const isProductBarcode = targetInputId === "barcode";
+    const formats = getFormats(targetInputId);
 
     const config = {
-      fps: 22,
+      fps: 15,
       qrbox: function (viewfinderWidth, viewfinderHeight) {
-        const width = Math.floor(viewfinderWidth * (isProductBarcode ? 0.9 : 0.72));
-        const height = Math.floor(viewfinderHeight * (isProductBarcode ? 0.28 : 0.55));
+        const widthRatio = isProductBarcode ? 0.88 : 0.72;
+        const heightRatio = isProductBarcode ? 0.26 : 0.52;
+
+        const width = Math.floor(viewfinderWidth * widthRatio);
+        const height = Math.floor(viewfinderHeight * heightRatio);
+
         return {
-          width: Math.max(260, Math.min(width, 520)),
-          height: Math.max(isProductBarcode ? 120 : 220, Math.min(height, isProductBarcode ? 180 : 360))
+          width: Math.max(240, Math.min(width, 460)),
+          height: Math.max(isProductBarcode ? 100 : 200, Math.min(height, isProductBarcode ? 160 : 330))
         };
       },
-      aspectRatio: 1.777778,
       disableFlip: true,
       rememberLastUsedCamera: true,
       experimentalFeatures: {
@@ -283,8 +307,45 @@ document.addEventListener("DOMContentLoaded", function () {
     return config;
   }
 
+  function normalizeCameraError(err) {
+    const rawMessage = err && err.message ? err.message : String(err || "");
+    const name = err && err.name ? err.name : "";
+
+    if (name === "NotAllowedError" || rawMessage.includes("Permission denied")) {
+      return "Trình duyệt chưa được cấp quyền Camera. Vào Settings > Safari/Chrome > Camera > Allow.";
+    }
+
+    if (name === "NotFoundError" || rawMessage.includes("Requested device not found")) {
+      return "Không tìm thấy camera trên thiết bị.";
+    }
+
+    if (name === "NotReadableError") {
+      return "Camera đang bị app khác sử dụng. Hãy đóng app camera/Zalo/Chrome tab khác rồi thử lại.";
+    }
+
+    if (name === "OverconstrainedError" || rawMessage.includes("constraint")) {
+      return "Thiết bị không hỗ trợ cấu hình camera hiện tại. Đã bỏ cấu hình nâng cao, hãy thử lại.";
+    }
+
+    if (!window.isSecureContext) {
+      return "Camera chỉ chạy trên HTTPS hoặc localhost. Hãy mở app bằng link HTTPS Railway.";
+    }
+
+    return rawMessage || "Không mở được camera. Hãy kiểm tra quyền Camera và thử lại.";
+  }
+
   async function startScanner(targetInputId) {
     if (isStartingScanner) return;
+
+    if (!window.Html5Qrcode) {
+      showError("Thiếu thư viện Html5Qrcode. Kiểm tra file base.html có import html5-qrcode chưa.");
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      showError("Camera chỉ chạy trên HTTPS hoặc localhost. Hãy mở app bằng link HTTPS Railway.");
+      return;
+    }
 
     isStartingScanner = true;
     activeTargetInput = document.getElementById(targetInputId);
@@ -300,58 +361,57 @@ document.addEventListener("DOMContentLoaded", function () {
 
     html5QrCode = new Html5Qrcode("reader");
 
+    const onScanSuccess = async function (decodedText) {
+      const now = Date.now();
+      const cleanText = String(decodedText || "").trim();
+
+      if (!activeTargetInput || !cleanText) return;
+      if (cleanText === lastDecodedText && now - lastDecodedAt < 900) return;
+
+      lastDecodedText = cleanText;
+      lastDecodedAt = now;
+
+      activeTargetInput.value = cleanText;
+      beep();
+
+      const currentInput = activeTargetInput;
+      const nextInput = getNextInput(currentInput);
+
+      await stopScanner();
+
+      if (currentInput.id === "po_no") {
+        loadHistory();
+      }
+
+      if (currentInput.id === "barcode") {
+        await loadProductInfo();
+      }
+
+      if (nextInput) {
+        setTimeout(function () {
+          nextInput.focus();
+          if (nextInput.select) nextInput.select();
+        }, 100);
+      }
+    };
+
+    const onScanFailure = function () {
+      // Ignore continuous scan miss.
+    };
+
     try {
       await html5QrCode.start(
-        {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          advanced: [{ focusMode: "continuous" }]
-        },
+        { facingMode: "environment" },
         buildScannerConfig(targetInputId),
-        async function onScanSuccess(decodedText) {
-          const now = Date.now();
-          const cleanText = String(decodedText || "").trim();
-
-          if (!activeTargetInput || !cleanText) return;
-          if (cleanText === lastDecodedText && now - lastDecodedAt < 900) return;
-
-          lastDecodedText = cleanText;
-          lastDecodedAt = now;
-
-          activeTargetInput.value = cleanText;
-          beep();
-
-          const currentInput = activeTargetInput;
-          const nextInput = getNextInput(currentInput);
-
-          await stopScanner();
-
-          if (currentInput.id === "po_no") {
-            loadHistory();
-          }
-
-          if (currentInput.id === "barcode") {
-            await loadProductInfo();
-          }
-
-          if (nextInput) {
-            setTimeout(function () {
-              nextInput.focus();
-              if (nextInput.select) nextInput.select();
-            }, 100);
-          }
-        },
-        function onScanFailure() {
-          // Ignore continuous scan miss.
-        }
+        onScanSuccess,
+        onScanFailure
       );
 
       isStartingScanner = false;
     } catch (err) {
       console.error("Camera error:", err);
       await stopScanner();
-      showError("Không mở được camera. Hãy mở bằng Safari/Chrome thật, cấp quyền Camera, và đảm bảo đang dùng HTTPS.");
+      showError(normalizeCameraError(err));
     }
   }
 
@@ -434,7 +494,11 @@ document.addEventListener("DOMContentLoaded", function () {
         clearProductInfo();
 
         await loadHistory();
-        palletInput.focus();
+
+        setTimeout(function () {
+          palletInput.focus();
+          if (palletInput.select) palletInput.select();
+        }, 100);
       } else {
         resultTitle.innerText = "❌ GR lỗi";
         resultTitle.className = "fw-bold mb-2 text-danger";
