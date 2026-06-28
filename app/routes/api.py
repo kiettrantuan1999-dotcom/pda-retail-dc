@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services import warehouse_service as svc
 from app.services.log_service import write_operation_log
+from app.services import pack_service
+from app.services.pack_service import get_pack_by_do, confirm_pack
 
 router = APIRouter(prefix="/api")
 
@@ -108,4 +110,44 @@ def inventory_search(q: str = "", db: Session = Depends(get_db)):
         {"sku": r.sku, "barcode": r.barcode, "location_id": r.location_id, "qty_onhand": r.qty_onhand}
         for r in rows
     ]})
+@router.get("/pack/do/{do_no}")
+def get_pack_do(
+    do_no: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = pack_service.get_pack_by_do(db, do_no)
+
+        if result.get("ok") is False:
+            return result
+
+        return ok(result)
+    except Exception as e:
+        return fail(e)
+
+
+@router.post("/pack/confirm")
+def pack_confirm(
+    request: Request,
+    do_no: str = Form(...),
+    actual_package_qty: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+            result = pack_service.confirm_pack(
+                db=db,
+                do_no=do_no,
+                actual_package_qty=actual_package_qty,
+                user_name=username(request),
+                device_name=request.headers.get("User-Agent", ""),
+            )
+
+            if result.get("ok") is False:
+                return result
+
+            return ok(result)
+    except Exception as e:
+        db.rollback()
+        return fail(e)
+
 

@@ -14,30 +14,29 @@ from app.models.tables import (
 )
 
 
+def ma_loai_phieu(pick_type: str) -> str:
+    return "C" if pick_type == "CASE" else "L"
+
+
+def ten_loai_phieu(pick_type: str) -> str:
+    return "Hàng chẵn" if pick_type == "CASE" else "Hàng lẻ"
+
+
+def tao_picking_no(do_no: str, pick_type: str) -> str:
+    return f"{do_no}-{ma_loai_phieu(pick_type)}"
+
+
 def tinh_so_tem_chuan(qty_do: int, pcb: int) -> int:
-    """
-    Hàng chẵn:
-    Số tem = làm tròn lên theo PCB.
-    """
     if pcb <= 0:
         pcb = 1
-
     return ceil(qty_do / pcb)
 
 
 def tinh_so_tem_tren_phieu(header, details) -> int:
-    """
-    Chẵn:
-        Tổng số tem = tổng label_qty của từng SKU.
-
-    Lẻ:
-        Tổng số tem = count distinct ngành hàng.
-    """
     if header.pick_type == "CASE":
         return sum(d.label_qty or 0 for d in details)
 
     categories = set()
-
     for d in details:
         category = (d.category or "CHƯA PHÂN NGÀNH").strip()
         categories.add(category)
@@ -46,10 +45,6 @@ def tinh_so_tem_tren_phieu(header, details) -> int:
 
 
 def lay_vi_tri_uu_tien(db: Session, sku: str):
-    """
-    Lấy vị trí ưu tiên theo pick_index nhỏ nhất.
-    Nếu SKU chưa có tồn/vị trí thì đưa xuống cuối phiếu lấy hàng.
-    """
     row = (
         db.query(InventoryBalance, LocationMaster)
         .outerjoin(
@@ -73,31 +68,14 @@ def lay_vi_tri_uu_tien(db: Session, sku: str):
 
 
 def tao_phieu_lay_hang_theo_do(db: Session, do_no: str):
-    """
-    Sinh phiếu lấy hàng Chẵn/Lẻ từ DO.
-
-    Rule:
-    - Chẵn/Lẻ lấy từ sku_master.sku_type.
-    - Chẵn: label_qty theo PCB.
-    - Lẻ: label_qty từng dòng = 0, tổng tem tính theo count distinct ngành hàng.
-    - Thứ tự lấy hàng sort theo location_master.pick_index.
-    """
     do_no = do_no.strip()
 
-    rows = (
-        db.query(DoDetail)
-        .filter(DoDetail.do_no == do_no)
-        .all()
-    )
+    rows = db.query(DoDetail).filter(DoDetail.do_no == do_no).all()
 
     if not rows:
         raise ValueError("Không tìm thấy dữ liệu DO")
 
-    old_headers = (
-        db.query(PickingHeader)
-        .filter(PickingHeader.do_no == do_no)
-        .all()
-    )
+    old_headers = db.query(PickingHeader).filter(PickingHeader.do_no == do_no).all()
 
     for h in old_headers:
         db.query(PickingDetail).filter(
@@ -115,17 +93,8 @@ def tao_phieu_lay_hang_theo_do(db: Session, do_no: str):
         if not sku:
             continue
 
-        sku_master = (
-            db.query(SkuMaster)
-            .filter(SkuMaster.sku == sku)
-            .first()
-        )
-
-        product = (
-            db.query(ProductMaster)
-            .filter(ProductMaster.sku == sku)
-            .first()
-        )
+        sku_master = db.query(SkuMaster).filter(SkuMaster.sku == sku).first()
+        product = db.query(ProductMaster).filter(ProductMaster.sku == sku).first()
 
         pick_type = "ODD"
         pcb = 1
@@ -139,15 +108,19 @@ def tao_phieu_lay_hang_theo_do(db: Session, do_no: str):
         if pick_type not in ["CASE", "ODD"]:
             pick_type = "ODD"
 
+        picking_no = tao_picking_no(r.do_no, pick_type)
         key = (r.do_no, r.store_id, pick_type)
 
         if key not in grouped:
             header = PickingHeader(
+                picking_no=picking_no,
                 do_no=r.do_no,
                 store_id=r.store_id,
                 store_name=r.store_name,
                 pick_type=pick_type,
                 status="WAIT_PICK",
+                print_status="WAIT_PRINT",
+                print_count=0,
                 created_at=datetime.utcnow(),
                 last_update=datetime.utcnow(),
             )
@@ -194,11 +167,16 @@ def tao_phieu_lay_hang_theo_do(db: Session, do_no: str):
     }
 
 
-def danh_sach_phieu_lay_hang(db: Session):
+def danh_sach_phieu_lay_hang(db: Session, print_status: str | None = None):
+    query = db.query(PickingHeader)
+
+    if print_status:
+        query = query.filter(PickingHeader.print_status == print_status)
+
     return (
-        db.query(PickingHeader)
+        query
         .order_by(PickingHeader.created_at.desc())
-        .limit(200)
+        .limit(300)
         .all()
     )
 
@@ -227,3 +205,30 @@ def chi_tiet_phieu_lay_hang(db: Session, picking_id: int):
     total_label_qty = tinh_so_tem_tren_phieu(header, details)
 
     return header, details, total_label_qty
+
+
+def danh_dau_da_in(db: Session, picking_id: int, user_name: str = "developer"):
+    header = (
+        db.query(PickingHeader)
+        .filter(PickingHeader.picking_id == picking_id)
+        .first()
+    )
+
+    if not header:
+        raise ValueError("Không tìm thấy phiếu lấy hàng")
+
+    header.print_status = "PRINTED"
+    header.printed_by = user_name
+    header.printed_at = datetime.utcnow()
+    header.print_count = (header.print_count or 0) + 1
+    header.last_update = datetime.utcnow()
+
+    db.commit()
+    db.refresh(header)
+
+    return {
+        "picking_id": header.picking_id,
+        "picking_no": header.picking_no,
+        "print_status": header.print_status,
+        "print_count": header.print_count,
+    }

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">🚚 Đóng hàng</h4>
+  <div class="text-muted">Quét mã phiếu lấy hàng để xác nhận đóng hàng</div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+
+    <label class="form-label fw-bold">Mã phiếu</label>
+    <div class="input-group mb-2">
+      <input
+          id="do_no"
+          class="form-control form-control-lg"
+          placeholder="Ví dụ: 7078865709-C hoặc 7078865709-L"
+          autocomplete="off"
+      >
+      <button id="scanDoBtn" class="btn btn-dark btn-lg" type="button">📷</button>
+    </div>
+
+    <button id="loadPackBtn" class="btn btn-primary btn-lg w-100">
+      Tìm phiếu đóng hàng
+    </button>
+
+  </div>
+</div>
+
+<div id="scannerBox" class="scanner-box card mb-3 d-none">
+  <div class="card-body">
+    <div class="fw-bold mb-2">Đưa mã phiếu vào khung camera</div>
+
+    <video
+      id="scannerVideo"
+      style="width: 100%; border-radius: 8px; background: #000;"
+      playsinline
+      muted
+    ></video>
+
+    <button type="button" class="btn btn-danger w-100 mt-2" id="closeScannerBtn">
+      Đóng camera
+    </button>
+  </div>
+</div>
+
+<div id="resultBox" class="alert d-none"></div>
+
+<div id="packBox" class="d-none">
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div><b>Mã phiếu:</b> <span id="infoPickingNo"></span></div>
+      <div><b>DO:</b> <span id="infoDoNo"></span></div>
+      <div><b>Cửa hàng:</b> <span id="infoStore"></span></div>
+      <div><b>Loại phiếu:</b> <span id="infoType"></span></div>
+      <div><b>Số SKU:</b> <span id="infoSkuLine"></span></div>
+      <div><b>Tổng số lượng:</b> <span id="infoTotalQty"></span></div>
+      <div><b>Trạng thái:</b> <span id="infoStatus"></span></div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <label class="form-label fw-bold">Số kiện đóng thực tế</label>
+      <input
+        id="actual_package_qty"
+        type="number"
+        class="form-control form-control-lg"
+        min="0"
+        placeholder="Số kiện đã đóng"
+      >
+
+      <button id="confirmPackBtn" class="btn btn-success btn-lg w-100 mt-3">
+        ✅ Xác nhận đóng hàng
+      </button>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <h5 class="fw-bold">Danh sách SKU</h5>
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm align-middle">
+          <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Barcode</th>
+                <th>Tên hàng</th>
+                <th>Qty</th>
+            </tr>
+          </thead>
+          <tbody id="skuTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="small text-muted mt-2">
+    Quét mã DO-C hoặc DO-L để tải thông tin đóng hàng.
+  </div>
+
+</div>
+
+<a href="/" class="btn btn-secondary w-100">⬅ Về trang chủ</a>
+
+<audio id="successBeep" preload="auto">
+  <source src="/static/sound/success.mp3" type="audio/mpeg">
+</audio>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
+<script src="/static/js/scanner_zxing.js"></script>
+<script src="/static/js/pack.js"></script>
+
+{% endblock %}

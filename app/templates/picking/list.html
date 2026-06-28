@@ -3,12 +3,35 @@
 
 <div class="mb-3">
   <h4 class="fw-bold mb-0">📋 Phiếu lấy hàng</h4>
-  <div class="text-muted">Danh sách phiếu lấy hàng đã sinh từ DO</div>
+  <div class="text-muted">Quản lý phiếu chờ in và đã in</div>
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6">
+    <a href="/picking/cho-in" class="btn btn-warning w-100">
+      📄 Chờ in
+    </a>
+  </div>
+  <div class="col-6">
+    <a href="/picking/da-in" class="btn btn-success w-100">
+      📑 Đã in
+    </a>
+  </div>
+</div>
+
+<div class="mb-3">
+  <a href="/picking" class="btn btn-secondary w-100">
+    Tất cả phiếu
+  </a>
+</div>
+
+<div class="mb-3">
+  <h5 class="fw-bold">{{ title or "Tất cả phiếu" }}</h5>
 </div>
 
 {% if rows|length == 0 %}
 <div class="alert alert-warning">
-  Chưa có phiếu lấy hàng.
+  Không có phiếu lấy hàng.
 </div>
 {% endif %}
 
@@ -18,28 +41,50 @@
     <div class="card shadow-sm">
       <div class="card-body">
 
-        <div><b>DO:</b> {{ r.do_no }}</div>
-        <div><b>Cửa hàng:</b> {{ r.store_id }} - {{ r.store_name }}</div>
+        <div class="d-flex justify-content-between">
+          <div>
+            <div><b>Mã phiếu:</b> {{ r.picking_no }}</div>
+            <div><b>DO gốc:</b> {{ r.do_no }}</div>
+            <div><b>Cửa hàng:</b> {{ r.store_id }} - {{ r.store_name }}</div>
+          </div>
 
-        <div class="mt-2">
-          {% if r.pick_type == "CASE" %}
-            <span class="badge bg-primary">Chẵn</span>
-          {% else %}
-            <span class="badge bg-success">Lẻ</span>
-          {% endif %}
+          <div class="text-end">
+            {% if r.pick_type == "CASE" %}
+              <span class="badge bg-primary">Chẵn</span>
+            {% else %}
+              <span class="badge bg-success">Lẻ</span>
+            {% endif %}
 
-          {% if r.status == "WAIT_PICK" %}
-            <span class="badge bg-warning text-dark">Chờ lấy hàng</span>
-          {% elif r.status == "DONE" %}
-            <span class="badge bg-success">Hoàn thành</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ r.status }}</span>
-          {% endif %}
+            <br>
+
+            {% if r.print_status == "WAIT_PRINT" %}
+              <span class="badge bg-warning text-dark mt-1">Chờ in</span>
+            {% elif r.print_status == "PRINTED" %}
+              <span class="badge bg-success mt-1">Đã in</span>
+            {% else %}
+              <span class="badge bg-secondary mt-1">{{ r.print_status }}</span>
+            {% endif %}
+          </div>
         </div>
 
-        <a href="/picking/{{ r.picking_id }}" class="btn btn-primary w-100 mt-3">
-          Xem phiếu lấy hàng
-        </a>
+        {% if r.print_status == "PRINTED" %}
+        <div class="text-muted small mt-2">
+          Đã in: {{ r.print_count or 0 }} lần
+        </div>
+        {% endif %}
+
+        <div class="row g-2 mt-3">
+          <div class="col-6">
+            <a href="/picking/{{ r.picking_id }}" class="btn btn-outline-primary w-100">
+              Xem
+            </a>
+          </div>
+          <div class="col-6">
+            <a href="/picking/{{ r.picking_id }}/print" target="_blank" class="btn btn-dark w-100">
+              In phiếu
+            </a>
+          </div>
+        </div>
 
       </div>
     </div>

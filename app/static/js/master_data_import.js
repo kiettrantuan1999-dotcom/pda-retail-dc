@@ -2,14 +2,24 @@ document.addEventListener("DOMContentLoaded", function () {
   const resultBox = document.getElementById("resultBox");
 
   function showResult(ok, msg) {
-    if (!resultBox) return;
+    if (!resultBox) {
+      alert(msg);
+      return;
+    }
 
-    resultBox.classList.remove("d-none", "alert-success", "alert-danger");
+    resultBox.classList.remove("d-none", "alert-success", "alert-danger", "alert-info");
     resultBox.classList.add(ok ? "alert-success" : "alert-danger");
     resultBox.innerText = msg;
   }
 
-  async function uploadFile(url, fileInput) {
+  async function uploadFile(url, fileInputId) {
+    const fileInput = document.getElementById(fileInputId);
+
+    if (!fileInput) {
+      showResult(false, `Không tìm thấy input file: ${fileInputId}`);
+      return;
+    }
+
     const file = fileInput.files[0];
 
     if (!file) {
@@ -20,77 +30,66 @@ document.addEventListener("DOMContentLoaded", function () {
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch(url, {
-      method: "POST",
-      body: formData
-    });
+    showResult(true, "Đang nhập dữ liệu...");
 
-    const data = await res.json();
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+      });
 
-    if (data.ok) {
+      const data = await res.json();
+
+      if (!data.ok) {
+        showResult(false, data.error || "Nhập dữ liệu lỗi.");
+        return;
+      }
+
       const d = data.data || {};
       showResult(
         true,
-        `Import thành công: ${d.imported_rows || 0} dòng | Thêm mới: ${d.inserted_rows || 0} | Cập nhật: ${d.updated_rows || 0} | Bỏ qua: ${d.skipped_rows || 0}`
+        `Nhập thành công: ${d.imported_rows || 0} dòng | Thêm mới: ${d.inserted_rows || 0} | Cập nhật: ${d.updated_rows || 0} | Bỏ qua: ${d.skipped_rows || 0} | Số DO: ${d.so_do || 0} | Số phiếu: ${d.so_phieu_lay_hang || 0}`
       );
-    } else {
-      showResult(false, data.error || "Import lỗi.");
+    } catch (err) {
+      showResult(false, err.message || "Lỗi kết nối server.");
     }
   }
 
-  const importProductBtn = document.getElementById("importProductBtn");
-  if (importProductBtn) {
-    importProductBtn.addEventListener("click", function () {
-      uploadFile(
-        "/api/master-data/import/product-master",
-        document.getElementById("productFile")
-      );
-    });
+  function bindClick(buttonId, handler) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) return;
+    btn.addEventListener("click", handler);
   }
 
-  const importSkuBtn = document.getElementById("importSkuBtn");
-  if (importSkuBtn) {
-    importSkuBtn.addEventListener("click", function () {
-      uploadFile(
-        "/api/master-data/import/sku-master",
-        document.getElementById("skuFile")
-      );
-    });
-  }
+  bindClick("importProductBtn", function () {
+    uploadFile("/api/master-data/import/product-master", "productFile");
+  });
 
-  const importCategoryBtn = document.getElementById("importCategoryBtn");
-  if (importCategoryBtn) {
-    importCategoryBtn.addEventListener("click", function () {
-      const mode = document.getElementById("categoryMode").value;
+  bindClick("importSkuBtn", function () {
+    uploadFile("/api/master-data/import/sku-master", "skuFile");
+  });
 
-      if (mode === "replace") {
-        const ok = confirm("Replace sẽ xóa toàn bộ Category Aisle hiện tại. Tiếp tục?");
-        if (!ok) return;
-      }
+  bindClick("importLocationBtn", function () {
+    uploadFile("/api/master-data/import/location-master", "locationFile");
+  });
 
-      uploadFile(
-        `/api/master-data/import/category-aisle?mode=${mode}`,
-        document.getElementById("categoryFile")
-      );
-    });
-  }
+  bindClick("importCategoryBtn", function () {
+    const modeEl = document.getElementById("categoryMode");
+    const mode = modeEl ? modeEl.value : "upsert";
 
-  const importPoBtn = document.getElementById("importPoBtn");
-  if (importPoBtn) {
-    importPoBtn.addEventListener("click", function () {
-      uploadFile(
-        "/api/master-data/import/po-detail",
-        document.getElementById("poFile")
-      );
-    });
-  }
-  const importDoBtn = document.getElementById("importDoBtn");
-  if (importDoBtn) {
-    importDoBtn.addEventListener("click", function () {
-      uploadFile(
-        "/api/master-data/import/do-detail",
-        document.getElementById("doFile")
-      );
-    });
-  }
+    if (mode === "replace") {
+      const ok = confirm("Replace sẽ xóa dữ liệu cũ. Tiếp tục?");
+      if (!ok) return;
+    }
+
+    uploadFile(`/api/master-data/import/category-aisle?mode=${mode}`, "categoryFile");
+  });
+
+  bindClick("importPoBtn", function () {
+    uploadFile("/api/master-data/import/po-detail", "poFile");
+  });
+
+  bindClick("importDoBtn", function () {
+    uploadFile("/api/master-data/import/do-detail", "doFile");
+  });
 });

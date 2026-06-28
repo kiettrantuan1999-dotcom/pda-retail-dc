@@ -258,17 +258,77 @@ class PickingHeader(Base):
     __tablename__ = "picking_header"
 
     picking_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    picking_no: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     do_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+
     store_id: Mapped[str] = mapped_column(String(100), index=True)
     store_name: Mapped[str] = mapped_column(String(255), default="")
+
     pick_type: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
+    pack_status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
+
+    print_status: Mapped[str] = mapped_column(String(50), default="WAIT_PRINT", index=True)
+    printed_by: Mapped[str] = mapped_column(String(100), default="")
+    printed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    print_count: Mapped[int] = mapped_column(Integer, default=0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    packed_by: Mapped[str] = mapped_column(String(100), default="")
+    packed_time: Mapped[datetime | None] = mapped_column(DateTime)
+    carton_qty: Mapped[int] = mapped_column(Integer, default=0)
+
 
     __table_args__ = (
         UniqueConstraint("do_no", "store_id", "pick_type", name="uq_picking_header"),
+    
     )
+
+
+class PackHeader(Base):
+    __tablename__ = "pack_header"
+
+    pack_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    picking_id: Mapped[int] = mapped_column(Integer, index=True)
+    picking_no: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+
+    do_no: Mapped[str] = mapped_column(String(100), index=True)
+    store_id: Mapped[str] = mapped_column(String(100), index=True)
+    store_name: Mapped[str] = mapped_column(String(255), default="")
+
+    pack_type: Mapped[str] = mapped_column(String(50), index=True)
+    sku_line_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_qty: Mapped[int] = mapped_column(Integer, default=0)
+    actual_package_qty: Mapped[int] = mapped_column(Integer, default=0)
+
+    status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
+    packed_by: Mapped[str] = mapped_column(String(100), default="")
+    packed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PackLog(Base):
+    __tablename__ = "pack_log"
+
+    pack_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    picking_no: Mapped[str] = mapped_column(String(120), index=True)
+    do_no: Mapped[str] = mapped_column(String(100), index=True)
+    store_id: Mapped[str] = mapped_column(String(100), index=True)
+    pack_type: Mapped[str] = mapped_column(String(50), index=True)
+
+    sku_line_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_qty: Mapped[int] = mapped_column(Integer, default=0)
+    actual_package_qty: Mapped[int] = mapped_column(Integer, default=0)
+
+    action: Mapped[str] = mapped_column(String(100), default="CONFIRM_PACK")
+    user_name: Mapped[str] = mapped_column(String(100), default="")
+    device_name: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class PickingDetail(Base):
@@ -291,21 +351,8 @@ class PickingDetail(Base):
     pick_type: Mapped[str] = mapped_column(String(50), index=True)
     label_qty: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
+    pack_status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-
-class PackLog(Base):
-    __tablename__ = "pack_log"
-
-    pack_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    do_no: Mapped[str] = mapped_column(String(100), index=True)
-    store_id: Mapped[str] = mapped_column(String(100))
-    sku: Mapped[str] = mapped_column(String(100), index=True)
-    barcode: Mapped[str] = mapped_column(String(100), index=True)
-    qty_pack: Mapped[int] = mapped_column(Integer)
-    pack_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    user_name: Mapped[str] = mapped_column(String(100), index=True)
-
 
 # =========================
 # AUDIT
@@ -423,4 +470,3 @@ class MasterDataIssue(Base):
     resolved_by: Mapped[str] = mapped_column(String(100), default="")
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
-print("TABLES FILE LOADED:", __file__)

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="vi">
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <head>
   <meta charset="UTF-8">
-  <title>Phiếu lấy hàng {{ header.do_no }}</title>
+  <title>Phiếu lấy hàng {{ header.picking_no }}</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
   <style>
     @page {
@@ -91,9 +92,10 @@
     }
 
     .side-value {
-      font-size: 26px;
+      font-size: 24px;
       font-weight: bold;
-      letter-spacing: 3px;
+      letter-spacing: 2px;
+      word-break: break-word;
     }
 
     .title-box {
@@ -114,22 +116,46 @@
       margin-top: 3px;
     }
 
+    .type-label {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border: 2px solid #000;
+      font-size: 17px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
     .barcode-box {
       margin-top: 8px;
       text-align: center;
     }
 
-    .barcode {
-      font-family: "Libre Barcode 128", "IDAutomationHC39M", "Courier New", monospace;
-      font-size: 42px;
-      line-height: 0.9;
-      letter-spacing: 0;
+    .barcode-box svg {
+      width: 260px;
+      height: 85px;
     }
 
     .barcode-text {
       font-size: 13px;
-      margin-top: 4px;
+      margin-top: 3px;
       letter-spacing: 1px;
+      font-weight: bold;
+    }
+
+    .qr-box {
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    #qrPicking {
+      width: 110px;
+      height: 110px;
+      margin: 0 auto;
+    }
+
+    .qr-text {
+      font-size: 11px;
+      margin-top: 4px;
     }
 
     .info-section {
@@ -138,7 +164,7 @@
       row-gap: 4px;
       margin-top: 8px;
       margin-bottom: 12px;
-      max-width: 600px;
+      max-width: 620px;
     }
 
     .info-row {
@@ -219,26 +245,6 @@
       text-align: right;
       font-size: 12px;
     }
-      .barcode-box svg {
-  width: 250px;
-  height: 70px;
-}
-
-.qr-box {
-  text-align: center;
-  margin-top: 10px;
-}
-
-#qrDo {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto;
-}
-
-.qr-text {
-  font-size: 11px;
-  margin-top: 4px;
-}
   </style>
 </head>
 
@@ -270,13 +276,13 @@
 
   <div>
     <div class="side-box">
-      <div class="side-label">Mã DO</div>
-      <div class="side-value">{{ header.do_no }}</div>
+      <div class="side-label">Mã phiếu</div>
+      <div class="side-value">{{ header.picking_no }}</div>
     </div>
 
     <div class="barcode-box">
-      <svg id="barcodeDo"></svg>
-      <div class="barcode-text">{{ header.do_no }}</div>
+      <svg id="barcodePicking"></svg>
+      <div class="barcode-text">{{ header.picking_no }}</div>
     </div>
   </div>
 
@@ -286,28 +292,35 @@
 
     {% if header.pick_type == "CASE" %}
       <div class="title-type">HÀNG CHẴN</div>
+      <div class="type-label">MÃ QUÉT: {{ header.picking_no }}</div>
     {% else %}
       <div class="title-type">HÀNG LẺ</div>
+      <div class="type-label">MÃ QUÉT: {{ header.picking_no }}</div>
     {% endif %}
   </div>
 
   <div>
-  <div class="side-box">
-    <div class="side-label">Cửa hàng</div>
-    <div class="side-value">{{ header.store_id }}</div>
-  </div>
+    <div class="side-box">
+      <div class="side-label">Cửa hàng</div>
+      <div class="side-value">{{ header.store_id }}</div>
+    </div>
 
-  <div class="qr-box">
-    <div id="qrDo"></div>
-    <div class="qr-text">Quét để tra cứu DO</div>
+    <div class="qr-box">
+      <div id="qrPicking"></div>
+      <div class="qr-text">Quét để mở phiếu lấy hàng</div>
+    </div>
   </div>
-</div>
 
 </div>
 
 <div class="info-section">
   <div class="info-row">
-    <div class="info-label">Diễn giải:</div>
+    <div class="info-label">Mã phiếu:</div>
+    <div>{{ header.picking_no }}</div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Mã DO:</div>
     <div>{{ header.do_no }}</div>
   </div>
 
@@ -341,10 +354,28 @@
     <div class="info-label">Số tem cần in:</div>
     <div>{{ total_label_qty }}</div>
   </div>
+
+  <div class="info-row">
+    <div class="info-label">Trạng thái in:</div>
+    <div>
+      {% if header.print_status == "WAIT_PRINT" %}
+        Chờ in
+      {% elif header.print_status == "PRINTED" %}
+        Đã in
+      {% else %}
+        {{ header.print_status }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-label">Lần in:</div>
+    <div>{{ header.print_count or 0 }}</div>
+  </div>
 </div>
 
 <div class="summary-title">
-  {{ header.store_id }} - {{ header.do_no }} -
+  {{ header.store_id }} - {{ header.picking_no }} -
   {% if header.pick_type == "CASE" %}
     PHIẾU LẤY HÀNG CHẴN
   {% else %}
@@ -445,20 +476,22 @@
 
   document.getElementById("printTime").innerText = printText;
 
-  const doNo = "{{ header.do_no }}";
+  const pickingNo = "{{ header.picking_no }}";
 
-  JsBarcode("#barcodeDo", doNo, {
+  JsBarcode("#barcodePicking", pickingNo, {
     format: "CODE128",
-    width: 2,
-    height: 55,
-    displayValue: false,
-    margin: 0
+    width: 1.8,
+    height: 65,
+    displayValue: true,
+    fontSize: 15,
+    textMargin: 3,
+    margin: 8
   });
 
-  new QRCode(document.getElementById("qrDo"), {
-    text: window.location.origin + "/picking/{{ header.picking_id }}",
-    width: 100,
-    height: 100
+  new QRCode(document.getElementById("qrPicking"), {
+    text: pickingNo,
+    width: 110,
+    height: 110
   });
 </script>
 

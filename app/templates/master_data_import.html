@@ -7,9 +7,7 @@
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h5 class="fw-bold">📦 Product Master</h5>
-    <div class="text-muted mb-2">
-      Dùng để map Barcode ↔ SKU.
-    </div>
+    <div class="text-muted mb-2">Dùng để map Barcode ↔ SKU.</div>
 
     <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/product-master">
       ⬇ Tải template Product Master
@@ -17,7 +15,7 @@
 
     <input id="productFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
-    <button id="importProductBtn" class="btn btn-success w-100">
+    <button type="button" id="importProductBtn" class="btn btn-success w-100">
       IMPORT PRODUCT MASTER
     </button>
   </div>
@@ -26,9 +24,7 @@
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h5 class="fw-bold">📊 SKU Master</h5>
-    <div class="text-muted mb-2">
-      Dùng để quản lý PCB, MHU, loại SKU chẵn/lẻ.
-    </div>
+    <div class="text-muted mb-2">Dùng để quản lý PCB, MHU, loại SKU chẵn/lẻ.</div>
 
     <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/sku-master">
       ⬇ Tải template SKU Master
@@ -36,7 +32,7 @@
 
     <input id="skuFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
-    <button id="importSkuBtn" class="btn btn-success w-100">
+    <button type="button" id="importSkuBtn" class="btn btn-success w-100">
       IMPORT SKU MASTER
     </button>
   </div>
@@ -57,7 +53,7 @@
 
     <input id="categoryFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
-    <button id="importCategoryBtn" class="btn btn-success w-100">
+    <button type="button" id="importCategoryBtn" class="btn btn-success w-100">
       IMPORT CATEGORY AISLE
     </button>
   </div>
@@ -77,11 +73,12 @@
 
     <input id="poFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
-    <button id="importPoBtn" class="btn btn-success w-100">
+    <button type="button" id="importPoBtn" class="btn btn-success w-100">
       IMPORT PO DETAIL
     </button>
   </div>
 </div>
+
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h5 class="fw-bold">🚚 DO Detail</h5>
@@ -95,7 +92,7 @@
 
     <input id="doFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
-    <button id="importDoBtn" class="btn btn-success w-100">
+    <button type="button" id="importDoBtn" class="btn btn-success w-100">
       NHẬP DO VÀ TẠO PHIẾU LẤY HÀNG
     </button>
   </div>
@@ -105,8 +102,6 @@
 
 <a href="/" class="btn btn-outline-secondary w-100">⬅ Về trang chủ</a>
 
-{% endblock %}
+<script src="/static/js/master_data_import.js?v=3"></script>
 
-{% block scripts %}
-<script src="/static/js/master_data_import.js"></script>
 {% endblock %}

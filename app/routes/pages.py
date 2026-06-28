@@ -68,22 +68,6 @@ def gr_page(request: Request):
         },
     )
 
-
-@router.get("/pack", response_class=HTMLResponse)
-def pack_page(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-
-    return templates.TemplateResponse(
-        "pack.html",
-        {
-            "request": request,
-            "user": current_user(request),
-        },
-    )
-
-
 @router.get("/inventory", response_class=HTMLResponse)
 def inventory_page(request: Request):
     redirect = require_login(request)
