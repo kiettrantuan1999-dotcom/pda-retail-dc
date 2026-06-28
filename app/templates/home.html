@@ -1,134 +1,162 @@
 {% extends "base.html" %}
+{% block title %}Trang chủ | Supra WMS{% endblock %}
 
 {% block content %}
+{% set role = user.role or 'worker' %}
+{% set is_operator = role == 'worker' %}
+{% set is_supervisor = role == 'supervisor' %}
+{% set is_admin = role == 'admin' %}
 
-<div class="mb-3">
-    <h4 class="fw-bold mb-0">
-        Xin chào, {{ user.user_name }}
-    </h4>
+{% if is_operator %}
+<section class="wms-command-head pda-home-head">
+  <div>
+    <div class="wms-breadcrumb">SUPRA WMS / PDA OPERATOR</div>
+    <h1>Tác vụ scan PDA</h1>
+    <p>Xin chào, <strong>{{ user.user_name }}</strong> · Chỉ hiển thị tác vụ vận hành cần thao tác nhanh.</p>
+  </div>
+</section>
 
-    <div class="text-muted">
-        Vai trò: {{ role_label }}
+<section class="operator-scan-grid">
+  <a href="/gr" class="operator-scan-card scan-blue">
+    <span class="operator-code">GR</span>
+    <strong>Nhận hàng</strong>
+    <small>Scan PO / Barcode / Pallet</small>
+  </a>
+  <a href="/putaway" class="operator-scan-card scan-green">
+    <span class="operator-code">PA</span>
+    <strong>Cất hàng</strong>
+    <small>Scan pallet vào location</small>
+  </a>
+  <a href="/pack" class="operator-scan-card scan-amber">
+    <span class="operator-code">PK</span>
+    <strong>Đóng hàng</strong>
+    <small>Scan DO và xác nhận pack</small>
+  </a>
+  <a href="/staging" class="operator-scan-card scan-red">
+    <span class="operator-code">ST</span>
+    <strong>Tập kết hàng</strong>
+    <small>Confirm khu staging</small>
+  </a>
+</section>
+
+<section class="wms-panel mt-3">
+  <div class="wms-panel-head">
+    <div>
+      <h2>Hỗ trợ nhanh</h2>
+      <p>Dùng khi cần kiểm tra tồn hoặc xác minh thông tin trước khi báo quản lý.</p>
     </div>
-</div>
+  </div>
+  <div class="wms-quick-grid operator-support-grid">
+    <a href="/inventory" class="wms-quick-action secondary">Kiểm tra tồn</a>
+  </div>
+</section>
+{% endif %}
 
-<div class="row g-3">
+{% if is_supervisor %}
+<section class="wms-command-head">
+  <div>
+    <div class="wms-breadcrumb">SUPRA WMS / SUPERVISOR CONTROL TOWER</div>
+    <h1>Trung tâm giám sát vận hành</h1>
+    <p>Xin chào, <strong>{{ user.user_name }}</strong> · Theo dõi KPI, tiến độ, cảnh báo và task phát sinh.</p>
+  </div>
+  <div class="wms-head-actions">
+    <a href="/supervisor/dashboard" class="btn btn-primary">Mở Dashboard KPI</a>
+    <a href="/logs" class="btn btn-outline-secondary">Nhật ký vận hành</a>
+  </div>
+</section>
 
-    <!-- GR -->
-    <div class="col-6">
-        <a class="btn btn-primary pda-menu" href="/gr">
-            📦<br>
-            NHẬN HÀNG
-        </a>
-    </div>
+<section class="wms-status-strip supervisor-kpi-strip">
+  <div class="wms-status-card status-blue"><span>Inbound</span><strong>GR Today</strong><small>Nhận hàng trong ngày</small></div>
+  <div class="wms-status-card status-green"><span>Storage</span><strong>Pending PA</strong><small>Pallet chờ cất hàng</small></div>
+  <div class="wms-status-card status-amber"><span>Outbound</span><strong>Pending Pack</strong><small>DO chờ đóng hàng</small></div>
+  <div class="wms-status-card status-red"><span>Exception</span><strong>Alert</strong><small>Lỗi scan / lệch tồn / quá SLA</small></div>
+</section>
 
-    <!-- PUT AWAY -->
-    <div class="col-6">
-        <a class="btn btn-success pda-menu" href="/putaway">
-            📍<br>
-            CẤT HÀNG
-        </a>
-    </div>
-
-    <!-- PACK -->
-    <div class="col-6">
-        <a class="btn btn-warning pda-menu" href="/pack">
-            🚚<br>
-            ĐÓNG HÀNG
-        </a>
-    </div>
-
-    <!-- STAGING -->
-    {% if can_staging %}
-    <div class="col-6">
-        <a class="btn btn-outline-success pda-menu" href="/staging">
-            🚛<br>
-            TẬP KẾT HÀNG
-        </a>
-    </div>
-    {% endif %}
-
-    <!-- INVENTORY -->
-    <div class="col-6">
-        <a class="btn btn-info pda-menu" href="/inventory">
-            📊<br>
-            KIỂM TRA TỒN
-        </a>
-    </div>
-
-    <!-- AUDIT -->
-    {% if can_audit %}
-    <div class="col-12">
-        <a class="btn btn-danger pda-menu" href="/audit">
-            🔎<br>
-            TRUY VẾT THAO TÁC
-        </a>
-    </div>
-    {% endif %}
-
-    <!-- MASTER DATA -->
-    <div class="col-12">
-        <a class="btn btn-secondary pda-menu" href="/master-data/import">
-            ⚙️<br>
-            QUẢN TRỊ DỮ LIỆU
-        </a>
-    </div>
-    
-    <div class="col-6">
-    <a class="btn btn-dark pda-menu" href="/picking">
-        📋<br>
-        PHIẾU LẤY HÀNG
-    </a>
-</div>
-
-    <!-- MANAGEMENT -->
-        {% if can_dashboard %}
-        <div class="col-12">
-            <a class="btn btn-dark pda-menu" href="/management">
-                📈<br>
-                QUẢN LÝ
-            </a>
+<section class="row g-3">
+  <div class="col-xl-8">
+    <div class="wms-panel h-100">
+      <div class="wms-panel-head">
+        <div>
+          <h2>Bảng điều phối nhanh</h2>
+          <p>Supervisor dùng các màn hình này để kiểm soát luồng và xử lý ngoại lệ.</p>
         </div>
-
-        <div class="col-12">
-            <a class="btn btn-primary pda-menu" href="/supervisor/dashboard">
-                📊<br>
-                SUPERVISOR
-            </a>
+      </div>
+      <div class="wms-process-lane supervisor-lane">
+        <a href="/supervisor/dashboard" class="wms-process-step"><span class="step-no">01</span><strong>Dashboard KPI</strong><small>Tiến độ và năng suất</small></a>
+        <a href="/putaway" class="wms-process-step"><span class="step-no">02</span><strong>Pending PA</strong><small>Danh sách chờ cất hàng</small></a>
+        <a href="/pack" class="wms-process-step"><span class="step-no">03</span><strong>Pending Pack</strong><small>Danh sách chờ đóng hàng</small></a>
+        <a href="/audit" class="wms-process-step"><span class="step-no">04</span><strong>Audit</strong><small>Truy vết thao tác</small></a>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="wms-panel h-100">
+      <div class="wms-panel-head">
+        <div>
+          <h2>Cảnh báo cần theo dõi</h2>
+          <p>Khung cảnh báo tạm thời trước khi nối realtime.</p>
         </div>
-        {% endif %}
-
-    <!-- LOG -->
-    {% if can_logs %}
-    <div class="col-6">
-        <a class="btn btn-secondary pda-menu" href="/logs">
-            📋<br>
-            NHẬT KÝ
-        </a>
+      </div>
+      <div class="wms-alert-list">
+        <div><strong>PA quá thời gian</strong><span>Kiểm tra pallet chưa cất</span></div>
+        <div><strong>Lệch tồn</strong><span>Đối chiếu Cycle Count / Adjustment</span></div>
+        <div><strong>Lỗi scan</strong><span>Mở Nhật ký để kiểm tra thao tác</span></div>
+      </div>
     </div>
-    {% endif %}
+  </div>
+</section>
+{% endif %}
 
+{% if is_admin %}
+<section class="wms-command-head">
+  <div>
+    <div class="wms-breadcrumb">SUPRA WMS / ADMIN CONSOLE</div>
+    <h1>Quản trị hệ thống</h1>
+    <p>Xin chào, <strong>{{ user.user_name }}</strong> · Quản lý dữ liệu gốc, người dùng, quyền và cấu hình.</p>
+  </div>
+  <div class="wms-head-actions">
+    <a href="/admin/users" class="btn btn-primary">Quản lý người dùng</a>
+    <a href="/admin/settings" class="btn btn-outline-secondary">Cài đặt hệ thống</a>
+  </div>
+</section>
 
-    <!-- ADMIN -->
-    {% if can_admin %}
-    <div class="col-12">
-        <a class="btn btn-outline-primary pda-menu" href="/admin/users">
-            ⚙️<br>
-            QUẢN TRỊ HỆ THỐNG
-        </a>
+<section class="row g-3">
+  <div class="col-xl-7">
+    <div class="wms-panel h-100">
+      <div class="wms-panel-head">
+        <div>
+          <h2>Admin Workspace</h2>
+          <p>Nhóm tác vụ cấu hình và kiểm soát nền tảng.</p>
+        </div>
+      </div>
+      <div class="admin-console-grid">
+        <a href="/admin/users" class="admin-console-card"><span>US</span><strong>Người dùng</strong><small>Tạo, khóa, phân quyền user</small></a>
+        <a href="/admin/roles" class="admin-console-card"><span>RL</span><strong>Vai trò / Quyền</strong><small>Ma trận quyền theo role</small></a>
+        <a href="/admin/settings" class="admin-console-card"><span>CF</span><strong>Cài đặt hệ thống</strong><small>Thông số vận hành</small></a>
+        <a href="/master-data/import" class="admin-console-card"><span>MD</span><strong>Dữ liệu gốc</strong><small>Import master data</small></a>
+        <a href="/audit" class="admin-console-card"><span>AT</span><strong>Audit</strong><small>Truy vết nghiệp vụ</small></a>
+        <a href="/logs" class="admin-console-card"><span>LG</span><strong>Nhật ký</strong><small>Operation / Error log</small></a>
+      </div>
     </div>
-    {% endif %}
-
-    <!-- USER -->
-    {% if can_users %}
-    <div class="col-6">
-        <a class="btn btn-outline-dark pda-menu" href="/users">
-            👤<br>
-            USER
-        </a>
+  </div>
+  <div class="col-xl-5">
+    <div class="wms-panel h-100">
+      <div class="wms-panel-head">
+        <div>
+          <h2>Giám sát vận hành</h2>
+          <p>Admin vẫn có thể mở các màn hình vận hành khi cần kiểm tra.</p>
+        </div>
+      </div>
+      <div class="wms-quick-grid">
+        <a href="/supervisor/dashboard" class="wms-quick-action">Dashboard KPI</a>
+        <a href="/inventory" class="wms-quick-action secondary">Kiểm tra tồn</a>
+        <a href="/gr" class="wms-quick-action secondary">Nhận hàng</a>
+        <a href="/putaway" class="wms-quick-action secondary">Cất hàng</a>
+        <a href="/pack" class="wms-quick-action secondary">Đóng hàng</a>
+        <a href="/staging" class="wms-quick-action secondary">Tập kết</a>
+      </div>
     </div>
-    {% endif %}
-
-</div>
-
+  </div>
+</section>
+{% endif %}
 {% endblock %}

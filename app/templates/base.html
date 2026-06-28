@@ -3,44 +3,141 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Supra WES</title>
+  <meta name="theme-color" content="#0f172a">
+  <title>{% block title %}Supra WMS{% endblock %}</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/css/pda.css" rel="stylesheet">
+  {% block styles %}{% endblock %}
 </head>
 
-<body>
-<nav class="navbar navbar-dark bg-dark sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="/">Supra WES</a>
+<body class="wms-body {% if user %}with-wms-sidebar{% endif %}">
+{% if user %}
+{% set role = user.role or 'worker' %}
+{% set is_operator = role == 'worker' %}
+{% set is_supervisor = role == 'supervisor' %}
+{% set is_admin = role == 'admin' %}
 
-    {% if user %}
-    <span class="text-white small">{{ user.user_name }} | {{ user.role }}</span>
-    <a class="btn btn-outline-light btn-sm" href="/logout">Đăng xuất</a>
-    {% endif %}
+<aside class="wms-sidebar" id="wmsSidebar" aria-label="Thanh module WMS">
+  <div class="wms-sidebar-brand">
+    <a class="wms-brand" href="/" aria-label="Supra WMS Home">
+      <span class="wms-logo-box">
+        <img src="/static/img/company_logo.svg" alt="Logo công ty" class="wms-logo" width="36" height="36">
+      </span>
+      <span class="wms-brand-text">
+        <span class="wms-brand-title">Supra WMS</span>
+        <span class="wms-brand-subtitle">DC Đà Nẵng - 1325</span>
+      </span>
+    </a>
   </div>
-</nav>
 
-<main class="container-fluid p-3">
+  <div class="wms-sidebar-control">
+    <button class="wms-sidebar-toggle" id="wmsSidebarToggle" type="button" aria-label="Thu gọn / mở rộng menu">
+      ☰
+    </button>
+    <span class="wms-sidebar-control-text">
+      {% if is_operator %}PDA OPERATOR{% elif is_supervisor %}SUPERVISOR{% elif is_admin %}ADMIN CONSOLE{% else %}MENU WMS{% endif %}
+    </span>
+  </div>
+
+  <nav class="wms-menu">
+    <div class="wms-menu-group">Tổng quan</div>
+    <a class="wms-menu-item" href="/" title="Trang chủ"><span class="wms-menu-icon">⌂</span><span class="wms-menu-text">Trang chủ</span></a>
+
+    {% if is_operator %}
+      <div class="wms-menu-group">Tác vụ PDA</div>
+      <a class="wms-menu-item" href="/gr" title="Nhận hàng"><span class="wms-menu-icon">GR</span><span class="wms-menu-text">Nhận hàng</span></a>
+      <a class="wms-menu-item" href="/putaway" title="Cất hàng"><span class="wms-menu-icon">PA</span><span class="wms-menu-text">Cất hàng</span></a>
+      <a class="wms-menu-item" href="/pack" title="Đóng hàng"><span class="wms-menu-icon">PK</span><span class="wms-menu-text">Đóng hàng</span></a>
+      <a class="wms-menu-item" href="/staging" title="Tập kết hàng"><span class="wms-menu-icon">ST</span><span class="wms-menu-text">Tập kết hàng</span></a>
+      <div class="wms-menu-group">Hỗ trợ</div>
+      <a class="wms-menu-item" href="/inventory" title="Kiểm tra tồn"><span class="wms-menu-icon">IV</span><span class="wms-menu-text">Kiểm tra tồn</span></a>
+    {% endif %}
+
+    {% if is_supervisor %}
+      <div class="wms-menu-group">Giám sát vận hành</div>
+      <a class="wms-menu-item" href="/supervisor/dashboard" title="Dashboard KPI"><span class="wms-menu-icon">DB</span><span class="wms-menu-text">Dashboard KPI</span></a>
+      <a class="wms-menu-item" href="/gr" title="Nhận hàng"><span class="wms-menu-icon">GR</span><span class="wms-menu-text">Nhận hàng</span></a>
+      <a class="wms-menu-item" href="/putaway" title="Cất hàng"><span class="wms-menu-icon">PA</span><span class="wms-menu-text">Cất hàng</span></a>
+      <a class="wms-menu-item" href="/pack" title="Đóng hàng"><span class="wms-menu-icon">PK</span><span class="wms-menu-text">Đóng hàng</span></a>
+      <a class="wms-menu-item" href="/staging" title="Tập kết hàng"><span class="wms-menu-icon">ST</span><span class="wms-menu-text">Tập kết hàng</span></a>
+      <div class="wms-menu-group">Kiểm soát</div>
+      <a class="wms-menu-item" href="/inventory" title="Kiểm tra tồn"><span class="wms-menu-icon">IV</span><span class="wms-menu-text">Kiểm tra tồn</span></a>
+      <a class="wms-menu-item" href="/audit" title="Truy vết"><span class="wms-menu-icon">AT</span><span class="wms-menu-text">Truy vết</span></a>
+      <a class="wms-menu-item" href="/logs" title="Nhật ký"><span class="wms-menu-icon">LG</span><span class="wms-menu-text">Nhật ký</span></a>
+    {% endif %}
+
+    {% if is_admin %}
+      <div class="wms-menu-group">Quản trị hệ thống</div>
+      <a class="wms-menu-item" href="/admin/users" title="Người dùng"><span class="wms-menu-icon">US</span><span class="wms-menu-text">Người dùng</span></a>
+      <a class="wms-menu-item" href="/admin/roles" title="Vai trò / quyền"><span class="wms-menu-icon">RL</span><span class="wms-menu-text">Vai trò / quyền</span></a>
+      <a class="wms-menu-item" href="/admin/settings" title="Cài đặt hệ thống"><span class="wms-menu-icon">CF</span><span class="wms-menu-text">Cài đặt hệ thống</span></a>
+      <a class="wms-menu-item" href="/master-data/import" title="Dữ liệu gốc"><span class="wms-menu-icon">MD</span><span class="wms-menu-text">Dữ liệu gốc</span></a>
+      <div class="wms-menu-group">Kiểm soát</div>
+      <a class="wms-menu-item" href="/supervisor/dashboard" title="Dashboard KPI"><span class="wms-menu-icon">DB</span><span class="wms-menu-text">Dashboard KPI</span></a>
+      <a class="wms-menu-item" href="/audit" title="Truy vết"><span class="wms-menu-icon">AT</span><span class="wms-menu-text">Truy vết</span></a>
+      <a class="wms-menu-item" href="/logs" title="Nhật ký"><span class="wms-menu-icon">LG</span><span class="wms-menu-text">Nhật ký</span></a>
+      <div class="wms-menu-group">Vận hành</div>
+      <a class="wms-menu-item" href="/gr" title="Nhận hàng"><span class="wms-menu-icon">GR</span><span class="wms-menu-text">Nhận hàng</span></a>
+      <a class="wms-menu-item" href="/putaway" title="Cất hàng"><span class="wms-menu-icon">PA</span><span class="wms-menu-text">Cất hàng</span></a>
+      <a class="wms-menu-item" href="/pack" title="Đóng hàng"><span class="wms-menu-icon">PK</span><span class="wms-menu-text">Đóng hàng</span></a>
+      <a class="wms-menu-item" href="/staging" title="Tập kết hàng"><span class="wms-menu-icon">ST</span><span class="wms-menu-text">Tập kết hàng</span></a>
+    {% endif %}
+  </nav>
+</aside>
+
+<header class="wms-topbar">
+  <div class="wms-topbar-left">
+    <div class="wms-page-title-mini">
+      {% if is_operator %}PDA Operator{% elif is_supervisor %}Supervisor Control Tower{% elif is_admin %}Admin Console{% else %}Supra WMS{% endif %}
+    </div>
+    <div class="wms-page-site-mini">Warehouse Management System · DC Đà Nẵng - 1325</div>
+  </div>
+
+  <div class="wms-topbar-right">
+    <div class="wms-env-pill"><span></span> ONLINE</div>
+    <div class="wms-role-pill {% if is_operator %}role-operator{% elif is_supervisor %}role-supervisor{% elif is_admin %}role-admin{% endif %}">
+      {% if is_operator %}OPERATOR{% elif is_supervisor %}SUPERVISOR{% elif is_admin %}ADMIN{% else %}{{ role }}{% endif %}
+    </div>
+    <div class="wms-userbox">
+      <div class="wms-user-name">{{ user.user_name }}</div>
+      <div class="wms-user-role">{{ user.role }}</div>
+    </div>
+    <a class="btn btn-light btn-sm wms-logout" href="/logout">Đăng xuất</a>
+  </div>
+</header>
+{% endif %}
+
+<main class="wms-content">
   {% block content %}{% endblock %}
 </main>
 
 <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
-  <div id="appToast" class="toast text-bg-dark" role="alert">
+  <div id="appToast" class="toast text-bg-dark border-0 shadow" role="alert">
     <div class="toast-body" id="toastBody"></div>
   </div>
 </div>
 
-<!-- Bootstrap -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- QR / Barcode camera scanner -->
 <script src="https://unpkg.com/html5-qrcode"></script>
-
-<!-- App global JS -->
 <script src="/static/js/app.js"></script>
+<script>
+(function () {
+  const body = document.body;
+  const sidebar = document.getElementById('wmsSidebar');
+  const toggle = document.getElementById('wmsSidebarToggle');
+  if (!sidebar || !toggle) return;
 
+  if (localStorage.getItem('wmsSidebarCollapsed') === '1') {
+    body.classList.add('wms-sidebar-collapsed');
+  }
+
+  toggle.addEventListener('click', function () {
+    body.classList.toggle('wms-sidebar-collapsed');
+    localStorage.setItem('wmsSidebarCollapsed', body.classList.contains('wms-sidebar-collapsed') ? '1' : '0');
+  });
+})();
+</script>
 {% block scripts %}{% endblock %}
-
 </body>
 </html>
