@@ -12,6 +12,7 @@ from app.models.tables import (
     CategoryAisleMaster,
     PutawayLog,
     MasterDataIssue,
+    AuditLog,
 )
 
 print("WAREHOUSE SERVICE LOADED:", __file__)
@@ -72,6 +73,19 @@ def confirm_gr(
 
     db.add(log)
     db.add(queue)
+    db.add(AuditLog(
+        operation="GR",
+        reference_no=po_no,
+        pallet_id=pallet_id,
+        location_id="",
+        sku=product.sku,
+        barcode=barcode,
+        qty_before=0,
+        qty_after=qty_gr,
+        qty_change=qty_gr,
+        user_name=user_name,
+        remark="Nhận hàng",
+    ))
     db.commit()
     db.refresh(queue)
 
@@ -248,6 +262,19 @@ def confirm_putaway(
         )
 
         db.add(log)
+        db.add(AuditLog(
+            operation="PUTAWAY",
+            reference_no=queue.po_no,
+            pallet_id=queue.pallet_id,
+            location_id=location_id,
+            sku=queue.sku,
+            barcode=queue.barcode,
+            qty_before=queue.qty_remain_putaway,
+            qty_after=queue.qty_remain_putaway - qty_putaway,
+            qty_change=-qty_putaway,
+            user_name=user_name,
+            remark="Cất hàng vào vị trí",
+        ))
 
         queue.qty_putaway += qty_putaway
         queue.qty_remain_putaway -= qty_putaway

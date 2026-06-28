@@ -103,7 +103,7 @@ def putaway_confirm(
         return fail(e)
 
 
-@router.get("/inventory/search")
+@router.get("/inventory/search-basic")
 def inventory_search(q: str = "", db: Session = Depends(get_db)):
     rows = svc.search_inventory(db, q.strip())
     return ok({"rows": [

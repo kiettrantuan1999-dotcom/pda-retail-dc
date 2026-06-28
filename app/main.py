@@ -3,9 +3,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from app.routes import picking
 from app.routes import pack
-
+from app.routes import supervisor
+from app.routes import audit
+from app.routes import admin
+from app.routes import staging
 from app.core.config import SECRET_KEY
-from app.routes import pages, auth, api, putaway, master_data
+from app.routes import pages, auth, api, putaway, master_data, inventory
 from app.middleware.error_middleware import ErrorLoggingMiddleware
 
 app = FastAPI(
@@ -22,6 +25,11 @@ app.include_router(pages.router)
 app.include_router(auth.router)
 app.include_router(api.router)
 app.include_router(master_data.router)
+app.include_router(inventory.router)
 app.include_router(putaway.router)
 app.include_router(picking.router)
 app.include_router(pack.router)
+app.include_router(supervisor.router)
+app.include_router(audit.router)
+app.include_router(admin.router)
+app.include_router(staging.router)

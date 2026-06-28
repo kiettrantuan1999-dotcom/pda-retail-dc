@@ -39,6 +39,9 @@ def root(request: Request):
             "can_dashboard": has_permission(role, "DASHBOARD_VIEW"),
             "can_logs": has_permission(role, "OPERATION_LOG_VIEW"),
             "can_users": has_permission(role, "USER_MANAGE"),
+            "can_admin": has_permission(role, "USER_MANAGE"),
+            "can_audit": has_permission(role, "AUDIT_USE") or has_permission(role, "OPERATION_LOG_VIEW"),
+            "can_staging": has_permission(role, "STAGING_USE"),
         },
     )
 
@@ -68,7 +71,7 @@ def gr_page(request: Request):
         },
     )
 
-@router.get("/inventory", response_class=HTMLResponse)
+@router.get("/inventory-placeholder", response_class=HTMLResponse)
 def inventory_page(request: Request):
     redirect = require_login(request)
     if redirect:
@@ -76,21 +79,6 @@ def inventory_page(request: Request):
 
     return templates.TemplateResponse(
         "inventory.html",
-        {
-            "request": request,
-            "user": current_user(request),
-        },
-    )
-
-
-@router.get("/audit", response_class=HTMLResponse)
-def audit_page(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-
-    return templates.TemplateResponse(
-        "audit.html",
         {
             "request": request,
             "user": current_user(request),

@@ -16,7 +16,15 @@ class AppUser(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(50), default="worker", index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    full_name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    phone: Mapped[str] = mapped_column(String(50), default="")
+    last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(100), default="")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class AppRole(Base):
@@ -50,6 +58,22 @@ class RolePermission(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint("role_code", "permission_code", name="uq_role_permission"),)
+
+
+class SystemSetting(Base):
+    __tablename__ = "system_setting"
+
+    setting_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    setting_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    setting_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    setting_value: Mapped[str] = mapped_column(Text, default="")
+    setting_group: Mapped[str] = mapped_column(String(100), default="HỆ_THỐNG", index=True)
+    value_type: Mapped[str] = mapped_column(String(50), default="text")
+    description: Mapped[str] = mapped_column(Text, default="")
+    is_editable: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_by: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 # =========================
@@ -223,6 +247,66 @@ class InventoryBalance(Base):
     __table_args__ = (UniqueConstraint("sku", "location_id", name="uq_inventory_sku_location"),)
 
 
+
+
+class InventoryCountHeader(Base):
+    __tablename__ = "inventory_count_header"
+
+    count_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    count_no: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    count_name: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(50), default="OPEN", index=True)
+    total_locations: Mapped[int] = mapped_column(Integer, default=0)
+    total_lines: Mapped[int] = mapped_column(Integer, default=0)
+    counted_lines: Mapped[int] = mapped_column(Integer, default=0)
+    variance_lines: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    approved_by: Mapped[str] = mapped_column(String(100), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class InventoryCountDetail(Base):
+    __tablename__ = "inventory_count_detail"
+
+    detail_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    count_no: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
+    location_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    barcode: Mapped[str] = mapped_column(String(100), index=True, default="")
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    expected_qty: Mapped[int] = mapped_column(Integer, default=0)
+    count_qty: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    variance_qty: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="WAIT_COUNT", index=True)
+    counted_by: Mapped[str] = mapped_column(String(100), default="", index=True)
+    counted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("count_no", "location_id", "sku", name="uq_count_location_sku"),
+    )
+
+
+class InventoryAdjustmentLog(Base):
+    __tablename__ = "inventory_adjustment_log"
+
+    adjustment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    count_no: Mapped[str] = mapped_column(String(120), index=True, default="")
+    sku: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    barcode: Mapped[str] = mapped_column(String(100), index=True, default="")
+    location_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    qty_before: Mapped[int] = mapped_column(Integer, default=0)
+    qty_after: Mapped[int] = mapped_column(Integer, default=0)
+    variance_qty: Mapped[int] = mapped_column(Integer, default=0)
+    reason: Mapped[str] = mapped_column(String(255), default="CYCLE_COUNT")
+    created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 # =========================
 # OUTBOUND
 # =========================
@@ -307,6 +391,11 @@ class PackHeader(Base):
     packed_by: Mapped[str] = mapped_column(String(100), default="")
     packed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    staging_status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
+    staging_confirm_user: Mapped[str] = mapped_column(String(100), default="", index=True)
+    staging_confirm_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    staging_remark: Mapped[str] = mapped_column(Text, default="")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -355,22 +444,29 @@ class PickingDetail(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 # =========================
-# AUDIT
+# AUDIT / TRACEABILITY
 # =========================
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
     audit_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sku: Mapped[str] = mapped_column(String(100), index=True)
-    barcode: Mapped[str] = mapped_column(String(100), index=True)
-    location_id: Mapped[str] = mapped_column(String(100), index=True)
-    system_qty: Mapped[int] = mapped_column(Integer)
-    physical_qty: Mapped[int] = mapped_column(Integer)
-    diff_qty: Mapped[int] = mapped_column(Integer)
-    audit_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    user_name: Mapped[str] = mapped_column(String(100), index=True)
-    note: Mapped[str] = mapped_column(Text, default="")
+    event_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    operation: Mapped[str] = mapped_column(String(100), index=True, default="")
+    reference_no: Mapped[str] = mapped_column(String(120), index=True, default="")
+
+    pallet_id: Mapped[str] = mapped_column(String(100), index=True, default="")
+    location_id: Mapped[str] = mapped_column(String(100), index=True, default="")
+    sku: Mapped[str] = mapped_column(String(100), index=True, default="")
+    barcode: Mapped[str] = mapped_column(String(100), index=True, default="")
+
+    qty_before: Mapped[int] = mapped_column(Integer, default=0)
+    qty_after: Mapped[int] = mapped_column(Integer, default=0)
+    qty_change: Mapped[int] = mapped_column(Integer, default=0)
+
+    user_name: Mapped[str] = mapped_column(String(100), index=True, default="")
+    remark: Mapped[str] = mapped_column(Text, default="")
 
 
 # =========================

@@ -1,6 +1,146 @@
 {% extends "base.html" %}
 {% block content %}
-<h4 class="fw-bold">Kiểm đếm</h4>
-<div class="alert alert-info">Module này sẽ được hoàn thiện ở sprint tiếp theo.</div>
-<a class="btn btn-secondary btn-lg w-100" href="/">Về trang chủ</a>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="fw-bold mb-0">🔎 Truy vết thao tác</h4>
+        <div class="text-muted">
+            Tra cứu lịch sử Nhận hàng, Cất hàng, Đóng hàng, Kiểm kê và Điều chỉnh tồn
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-success"
+           href="/audit/export?{{ request.url.query }}">
+            📥 Xuất dữ liệu
+        </a>
+
+        <a class="btn btn-outline-secondary"
+           href="/">
+            🏠 Trang chủ
+        </a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/audit">
+            <div class="row g-2">
+                <div class="col-12">
+                    <label class="form-label fw-bold">Tìm nhanh</label>
+                    <input name="q" class="form-control form-control-lg" value="{{ filters.q }}" placeholder="SKU / Barcode / PA / Vị trí / PO / DO / User">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">Loại thao tác</label>
+                    <select name="operation" class="form-select">
+                        <option value="">Tất cả</option>
+                        {% for op in operations %}
+                            <option value="{{ op }}" {% if filters.operation == op %}selected{% endif %}>
+                                {{ operation_labels.get(op, op) }}
+                            </option>
+                            {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">User</label>
+                    <input name="user_name" class="form-control" value="{{ filters.user_name }}">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">SKU</label>
+                    <input name="sku" class="form-control" value="{{ filters.sku }}">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">Barcode</label>
+                    <input name="barcode" class="form-control" value="{{ filters.barcode }}">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">PA / Pallet</label>
+                    <input name="pallet_id" class="form-control" value="{{ filters.pallet_id }}">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">Vị trí</label>
+                    <input name="location_id" class="form-control" value="{{ filters.location_id }}">
+                </div>
+
+                <div class="col-6">
+                    <label class="form-label">PO / DO / Count No</label>
+                    <input name="reference_no" class="form-control" value="{{ filters.reference_no }}">
+                </div>
+
+                <div class="col-3">
+                    <label class="form-label">Từ ngày</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
+                </div>
+
+                <div class="col-3">
+                    <label class="form-label">Đến ngày</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
+                </div>
+
+                <div class="col-12 d-grid mt-3">
+                    <button class="btn btn-primary btn-lg" type="submit">Tìm kiếm</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header fw-bold">
+        Kết quả: {{ rows|length }} dòng gần nhất
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Thao tác</th>
+                    <th>Ref</th>
+                    <th>PA</th>
+                    <th>Vị trí</th>
+                    <th>SKU</th>
+                    <th>Barcode</th>
+                    <th>Trước</th>
+                    <th>Sau</th>
+                    <th>Chênh</th>
+                    <th>User</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="text-nowrap">{{ r.event_time.strftime('%Y-%m-%d %H:%M:%S') if r.event_time else '' }}</td>
+                    <td><span class="badge bg-dark">{{ operation_labels.get(r.operation, r.operation) }}</span></td>
+                    <td>{{ r.reference_no }}</td>
+                    <td>{{ r.pallet_id }}</td>
+                    <td>{{ r.location_id }}</td>
+                    <td>{{ r.sku }}</td>
+                    <td>{{ r.barcode }}</td>
+                    <td class="text-end">{{ r.qty_before }}</td>
+                    <td class="text-end">{{ r.qty_after }}</td>
+                    <td class="text-end">{{ r.qty_change }}</td>
+                    <td>{{ r.user_name }}</td>
+                    <td>{{ r.remark }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="12" class="text-center text-muted py-4">Chưa có dữ liệu audit.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 {% endblock %}

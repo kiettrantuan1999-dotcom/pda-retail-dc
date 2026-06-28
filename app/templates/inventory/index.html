@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">📊 Tồn kho / Kiểm kê</h4>
+  <div class="text-muted">Tra cứu tồn, tạo đợt kiểm kê, PDA kiểm kê vị trí</div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12">
+    <a href="/inventory/inquiry" class="btn btn-info pda-menu">
+      🔎<br>TRA CỨU TỒN
+    </a>
+  </div>
+
+  <div class="col-12">
+    <a href="/inventory/counts" class="btn btn-warning pda-menu">
+      🧮<br>DANH SÁCH KIỂM KÊ
+    </a>
+  </div>
+
+  {% if can_supervisor %}
+  <div class="col-12">
+    <a href="/inventory/counts/new" class="btn btn-primary pda-menu">
+      ➕<br>TẠO ĐỢT KIỂM KÊ
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="col-12">
+    <a href="/" class="btn btn-outline-secondary pda-menu">
+      ⬅<br>VỀ HOME
+    </a>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">📋 {{ header.count_no }}</h4>
+  <div class="text-muted">{{ header.count_name }} | {{ header.status }}</div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="row text-center small">
+      <div class="col-3"><b>{{ header.total_locations }}</b><br>Vị trí</div>
+      <div class="col-3"><b>{{ header.total_lines }}</b><br>Dòng</div>
+      <div class="col-3"><b>{{ header.counted_lines }}</b><br>Đã đếm</div>
+      <div class="col-3"><b>{{ header.variance_lines }}</b><br>Lệch</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6">
+    <a href="/inventory/counts/{{ header.count_no }}/scan" class="btn btn-warning w-100">PDA Đếm</a>
+  </div>
+  {% if can_approve and header.status != "APPROVED" %}
+  <div class="col-6">
+    <button id="approveBtn" class="btn btn-success w-100" data-count-no="{{ header.count_no }}">Duyệt tồn</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="table-responsive card shadow-sm">
+<table class="table table-sm table-bordered align-middle mb-0">
+  <thead class="table-light">
+    <tr>
+      <th>Loc</th>
+      <th>SKU</th>
+      <th>Barcode</th>
+      <th class="text-end">Sys</th>
+      <th class="text-end">Count</th>
+      <th class="text-end">Diff</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in details %}
+    <tr class="{% if d.variance_qty != 0 and d.status == 'DONE' %}table-danger{% endif %}">
+      <td>{{ d.location_id }}</td>
+      <td>{{ d.sku }}</td>
+      <td>{{ d.barcode }}</td>
+      <td class="text-end">{{ d.expected_qty }}</td>
+      <td class="text-end">{{ d.count_qty if d.count_qty is not none else '' }}</td>
+      <td class="text-end fw-bold">{{ d.variance_qty if d.status == 'DONE' else '' }}</td>
+      <td>{{ d.status }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="mt-3">
+  <a href="/inventory/counts" class="btn btn-outline-secondary w-100">⬅ Danh sách kiểm kê</a>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/inventory_count_detail.js"></script>
+{% endblock %}

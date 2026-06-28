@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">🧮 Danh sách kiểm kê</h4>
+  <div class="text-muted">Theo dõi các đợt cycle count</div>
+</div>
+
+<div class="mb-3">
+  <a href="/inventory/counts/new" class="btn btn-primary w-100">➕ Tạo đợt kiểm kê</a>
+</div>
+
+{% if counts %}
+  {% for c in counts %}
+  <div class="card shadow-sm mb-2">
+    <div class="card-body">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="fw-bold">{{ c.count_no }}</div>
+          <div class="text-muted small">{{ c.count_name }}</div>
+        </div>
+        <span class="badge text-bg-secondary align-self-start">{{ c.status }}</span>
+      </div>
+
+      <div class="row text-center mt-3 small">
+        <div class="col-3"><b>{{ c.total_locations }}</b><br>Vị trí</div>
+        <div class="col-3"><b>{{ c.total_lines }}</b><br>Dòng</div>
+        <div class="col-3"><b>{{ c.counted_lines }}</b><br>Đã đếm</div>
+        <div class="col-3"><b>{{ c.variance_lines }}</b><br>Lệch</div>
+      </div>
+
+      <div class="row g-2 mt-3">
+        <div class="col-6">
+          <a href="/inventory/counts/{{ c.count_no }}/scan" class="btn btn-warning w-100">PDA Đếm</a>
+        </div>
+        <div class="col-6">
+          <a href="/inventory/counts/{{ c.count_no }}" class="btn btn-outline-primary w-100">Chi tiết</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="alert alert-secondary">Chưa có đợt kiểm kê.</div>
+{% endif %}
+
+<div class="mt-3">
+  <a href="/inventory" class="btn btn-outline-secondary w-100">⬅ Quay lại</a>
+</div>
+
+{% endblock %}

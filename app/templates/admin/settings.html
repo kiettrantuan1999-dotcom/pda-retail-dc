@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="fw-bold mb-0">⚙️ Cấu hình hệ thống</h4>
+        <div class="text-muted">Quản lý cấu hình vận hành cơ bản của Supra WES</div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="/admin/users">👤 Người dùng</a>
+        <a class="btn btn-outline-primary" href="/admin/roles">🔐 Quyền</a>
+        <a class="btn btn-outline-secondary" href="/">🏠 Trang chủ</a>
+    </div>
+</div>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/admin/settings">
+    <div class="card shadow-sm">
+        <div class="card-header fw-bold">
+            Danh sách cấu hình
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 18%">Nhóm</th>
+                        <th style="width: 22%">Cấu hình</th>
+                        <th style="width: 30%">Giá trị</th>
+                        <th>Mô tả</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in settings %}
+                    <tr>
+                        <td>
+                            <span class="badge bg-secondary">{{ s.setting_group }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold">{{ s.setting_name }}</div>
+                            <div class="text-muted small">{{ s.setting_key }}</div>
+                        </td>
+                        <td>
+                            {% if not s.is_editable %}
+                                <input class="form-control" value="{{ s.setting_value }}" disabled>
+                            {% elif s.value_type == "textarea" %}
+                                <textarea class="form-control" name="setting_{{ s.setting_key }}" rows="3">{{ s.setting_value }}</textarea>
+                            {% elif s.value_type == "select_yes_no" %}
+                                <select class="form-select" name="setting_{{ s.setting_key }}">
+                                    <option value="YES" {% if s.setting_value == "YES" %}selected{% endif %}>Có</option>
+                                    <option value="NO" {% if s.setting_value == "NO" %}selected{% endif %}>Không</option>
+                                </select>
+                            {% elif s.value_type == "number" %}
+                                <input type="number" class="form-control" name="setting_{{ s.setting_key }}" value="{{ s.setting_value }}">
+                            {% else %}
+                                <input class="form-control" name="setting_{{ s.setting_key }}" value="{{ s.setting_value }}">
+                            {% endif %}
+
+                            {% if s.updated_by %}
+                            <div class="text-muted small mt-1">
+                                Cập nhật bởi {{ s.updated_by }}
+                                {% if s.updated_at %} lúc {{ s.updated_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">{{ s.description }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">Chưa có cấu hình hệ thống.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Chỉ Admin được thay đổi cấu hình. Các thay đổi sẽ được ghi vào nhật ký vận hành.
+            </div>
+            <button class="btn btn-primary btn-lg" type="submit">
+                💾 Lưu cấu hình
+            </button>
+        </div>
+    </div>
+</form>
+
+{% endblock %}

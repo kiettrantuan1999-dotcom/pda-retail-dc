@@ -38,6 +38,16 @@
         </a>
     </div>
 
+    <!-- STAGING -->
+    {% if can_staging %}
+    <div class="col-6">
+        <a class="btn btn-outline-success pda-menu" href="/staging">
+            🚛<br>
+            TẬP KẾT HÀNG
+        </a>
+    </div>
+    {% endif %}
+
     <!-- INVENTORY -->
     <div class="col-6">
         <a class="btn btn-info pda-menu" href="/inventory">
@@ -47,12 +57,14 @@
     </div>
 
     <!-- AUDIT -->
+    {% if can_audit %}
     <div class="col-12">
         <a class="btn btn-danger pda-menu" href="/audit">
-            📝<br>
-            KIỂM ĐẾM
+            🔎<br>
+            TRUY VẾT THAO TÁC
         </a>
     </div>
+    {% endif %}
 
     <!-- MASTER DATA -->
     <div class="col-12">
@@ -70,14 +82,21 @@
 </div>
 
     <!-- MANAGEMENT -->
-    {% if can_dashboard %}
-    <div class="col-12">
-        <a class="btn btn-dark pda-menu" href="/management">
-            📈<br>
-            QUẢN LÝ
-        </a>
-    </div>
-    {% endif %}
+        {% if can_dashboard %}
+        <div class="col-12">
+            <a class="btn btn-dark pda-menu" href="/management">
+                📈<br>
+                QUẢN LÝ
+            </a>
+        </div>
+
+        <div class="col-12">
+            <a class="btn btn-primary pda-menu" href="/supervisor/dashboard">
+                📊<br>
+                SUPERVISOR
+            </a>
+        </div>
+        {% endif %}
 
     <!-- LOG -->
     {% if can_logs %}
@@ -85,6 +104,17 @@
         <a class="btn btn-secondary pda-menu" href="/logs">
             📋<br>
             NHẬT KÝ
+        </a>
+    </div>
+    {% endif %}
+
+
+    <!-- ADMIN -->
+    {% if can_admin %}
+    <div class="col-12">
+        <a class="btn btn-outline-primary pda-menu" href="/admin/users">
+            ⚙️<br>
+            QUẢN TRỊ HỆ THỐNG
         </a>
     </div>
     {% endif %}

@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        {% if mode == "create" %}
+        <h4 class="fw-bold mb-0">➕ Thêm người dùng</h4>
+        <div class="text-muted">Tạo tài khoản mới cho nhân viên kho</div>
+        {% else %}
+        <h4 class="fw-bold mb-0">✏️ Sửa người dùng</h4>
+        <div class="text-muted">Cập nhật thông tin và quyền truy cập</div>
+        {% endif %}
+    </div>
+
+    <a class="btn btn-outline-secondary" href="/admin/users">Quay lại</a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        {% if mode == "create" %}
+        <form method="post" action="/admin/users/new">
+        {% else %}
+        <form method="post" action="/admin/users/{{ target_user.user_id }}/edit">
+        {% endif %}
+
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Tên đăng nhập</label>
+                    <input
+                        name="user_name"
+                        class="form-control form-control-lg"
+                        value="{{ target_user.user_name if target_user else '' }}"
+                        {% if mode == "edit" %}readonly{% endif %}
+                        required
+                    >
+                    {% if mode == "edit" %}
+                    <div class="form-text">Không cho sửa tên đăng nhập để giữ lịch sử Audit.</div>
+                    {% endif %}
+                </div>
+
+                {% if mode == "create" %}
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Mật khẩu</label>
+                    <input name="password" type="password" class="form-control form-control-lg" placeholder="Bỏ trống = 123456">
+                </div>
+                {% endif %}
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Họ tên</label>
+                    <input name="full_name" class="form-control form-control-lg" value="{{ target_user.full_name if target_user else '' }}">
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Vai trò</label>
+                    <select name="role" class="form-select form-select-lg">
+                        {% for r in roles %}
+                        <option value="{{ r }}" {% if target_user and target_user.role == r %}selected{% endif %}>{{ role_labels.get(r, r) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Trạng thái</label>
+                    <select name="status" class="form-select form-select-lg">
+                        <option value="ACTIVE" {% if not target_user or target_user.is_active %}selected{% endif %}>Đang hoạt động</option>
+                        <option value="INACTIVE" {% if target_user and not target_user.is_active %}selected{% endif %}>Đã khóa</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Email</label>
+                    <input name="email" class="form-control form-control-lg" value="{{ target_user.email if target_user else '' }}">
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label fw-bold">Số điện thoại</label>
+                    <input name="phone" class="form-control form-control-lg" value="{{ target_user.phone if target_user else '' }}">
+                </div>
+
+                <div class="col-12 d-grid mt-4">
+                    <button class="btn btn-primary btn-lg" type="submit">
+                        {% if mode == "create" %}
+                        Tạo người dùng
+                        {% else %}
+                        Lưu thay đổi
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

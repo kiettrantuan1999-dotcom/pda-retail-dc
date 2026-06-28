@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">📱 PDA Kiểm kê</h4>
+  <div class="text-muted">{{ header.count_no }} | {{ header.status }}</div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <input type="hidden" id="countNo" value="{{ header.count_no }}">
+
+    <label class="form-label fw-bold">Scan vị trí</label>
+    <div class="input-group mb-3">
+      <input id="locationId" class="form-control form-control-lg" placeholder="Location" autocomplete="off">
+      <button class="btn btn-outline-primary scan-btn" data-target="locationId" type="button">📷</button>
+    </div>
+
+    <label class="form-label fw-bold">Scan barcode</label>
+    <div class="input-group mb-3">
+      <input id="barcode" class="form-control form-control-lg" placeholder="Barcode" autocomplete="off">
+      <button class="btn btn-outline-primary scan-btn" data-target="barcode" type="button">📷</button>
+    </div>
+
+    <button id="loadTaskBtn" class="btn btn-primary w-100 pda-action-btn" type="button">TẢI DÒNG KIỂM KÊ</button>
+  </div>
+</div>
+
+<div id="taskBox" class="card shadow-sm mb-3 d-none">
+  <div class="card-body">
+    <h5 class="fw-bold mb-3">Thông tin hàng</h5>
+    <table class="table table-bordered">
+      <tr><th width="35%">Location</th><td id="tLocation"></td></tr>
+      <tr><th>SKU</th><td id="tSku"></td></tr>
+      <tr><th>Barcode</th><td id="tBarcode"></td></tr>
+      <tr><th>Tên hàng</th><td id="tName"></td></tr>
+      <tr><th>Tồn hệ thống</th><td id="tExpected" class="fw-bold"></td></tr>
+    </table>
+
+    <input type="hidden" id="detailId">
+
+    <label class="form-label fw-bold">Số lượng thực tế</label>
+    <input id="countQty" type="number" min="0" class="form-control form-control-lg mb-3" placeholder="Nhập số lượng đếm">
+
+    <label class="form-label fw-bold">Ghi chú</label>
+    <input id="note" class="form-control mb-3" placeholder="Ví dụ: rách thùng / sai barcode / thiếu hàng">
+
+    <div id="saveResult" class="alert d-none"></div>
+
+    <button id="saveCountBtn" class="btn btn-success w-100 pda-action-btn" type="button">XÁC NHẬN KIỂM KÊ</button>
+  </div>
+</div>
+
+<div id="scannerBox" class="card mt-3 d-none">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-2">
+      <strong>📷 Camera</strong>
+      <button class="btn btn-sm btn-danger" id="closeScannerBtn" type="button">Đóng</button>
+    </div>
+    <div id="reader"></div>
+  </div>
+</div>
+
+<div class="mt-3">
+  <a href="/inventory/counts/{{ header.count_no }}" class="btn btn-outline-secondary w-100">⬅ Chi tiết đợt kiểm kê</a>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/inventory_count_scan.js"></script>
+{% endblock %}

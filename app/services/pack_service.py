@@ -8,6 +8,7 @@ from app.models.tables import (
     PackHeader,
     PackLog,
     DoDetail,
+    AuditLog,
 )
 
 
@@ -191,6 +192,19 @@ def confirm_pack(
         created_at=now,
     )
     db.add(log)
+    db.add(AuditLog(
+        operation="PACK",
+        reference_no=header.do_no,
+        pallet_id="",
+        location_id="",
+        sku="",
+        barcode="",
+        qty_before=0,
+        qty_after=total_qty,
+        qty_change=-total_qty,
+        user_name=user_name or "",
+        remark=f"Đóng hàng {header.picking_no} / {actual_package_qty} kiện",
+    ))
 
     db.commit()
 

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="fw-bold mb-0">⚙️ Quản trị người dùng</h4>
+        <div class="text-muted">Tạo, sửa, khóa và reset mật khẩu người dùng hệ thống</div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-primary" href="/admin/roles">🔐 Quản lý quyền</a>
+        <a class="btn btn-outline-primary" href="/admin/settings">⚙️ Cấu hình</a>
+        <a class="btn btn-primary" href="/admin/users/new">➕ Thêm người dùng</a>
+        <a class="btn btn-outline-secondary" href="/">🏠 Trang chủ</a>
+    </div>
+</div>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/admin/users">
+            <div class="row g-2">
+                <div class="col-12 col-md-5">
+                    <label class="form-label fw-bold">Tìm nhanh</label>
+                    <input name="q" class="form-control" value="{{ filters.q }}" placeholder="Tên đăng nhập / Họ tên / Email / SĐT">
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label fw-bold">Vai trò</label>
+                    <select name="role" class="form-select">
+                        <option value="">Tất cả</option>
+                        {% for r in roles %}
+                        <option value="{{ r }}" {% if filters.role == r %}selected{% endif %}>{{ role_labels.get(r, r) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-2">
+                    <label class="form-label fw-bold">Trạng thái</label>
+                    <select name="status" class="form-select">
+                        <option value="" {% if not filters.status %}selected{% endif %}>Tất cả</option>
+                        <option value="ACTIVE" {% if filters.status == "ACTIVE" %}selected{% endif %}>Đang hoạt động</option>
+                        <option value="INACTIVE" {% if filters.status == "INACTIVE" %}selected{% endif %}>Đã khóa</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-2 d-grid align-items-end">
+                    <label class="form-label d-none d-md-block">&nbsp;</label>
+                    <button class="btn btn-dark" type="submit">Tìm kiếm</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header fw-bold">
+        Danh sách người dùng: {{ users|length }} dòng
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tên đăng nhập</th>
+                    <th>Họ tên</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Email</th>
+                    <th>SĐT</th>
+                    <th>Ngày tạo</th>
+                    <th class="text-end">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.user_id }}</td>
+                    <td class="fw-bold">{{ u.user_name }}</td>
+                    <td>{{ u.full_name or "" }}</td>
+                    <td>{{ role_labels.get(u.role, u.role) }}</td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="badge bg-success">Đang hoạt động</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Đã khóa</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.email or "" }}</td>
+                    <td>{{ u.phone or "" }}</td>
+                    <td class="text-nowrap">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '' }}</td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" href="/admin/users/{{ u.user_id }}/edit">Sửa</a>
+
+                        <form class="d-inline" method="post" action="/admin/users/{{ u.user_id }}/reset-password"
+                              onsubmit="return confirm('Reset mật khẩu user {{ u.user_name }} về 123456?')">
+                            <button class="btn btn-sm btn-outline-warning" type="submit">Reset MK</button>
+                        </form>
+
+                        <form class="d-inline" method="post" action="/admin/users/{{ u.user_id }}/toggle"
+                              onsubmit="return confirm('Đổi trạng thái user {{ u.user_name }}?')">
+                            {% if u.is_active %}
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Khóa</button>
+                            {% else %}
+                            <button class="btn btn-sm btn-outline-success" type="submit">Mở</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">Chưa có người dùng phù hợp.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
