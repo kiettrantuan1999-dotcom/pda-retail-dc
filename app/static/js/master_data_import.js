@@ -38,10 +38,21 @@ document.addEventListener("DOMContentLoaded", function () {
         body: formData,
       });
 
-      const data = await res.json();
+      const text = await res.text();
 
-      if (!data.ok) {
-        showResult(false, data.error || "Nhập dữ liệu lỗi.");
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        showResult(
+          false,
+          `Server không trả JSON hợp lệ. HTTP ${res.status}. Nội dung: ${text || "Không có response"}`
+        );
+        return;
+      }
+
+      if (!res.ok || !data.ok) {
+        showResult(false, data.error || `Nhập dữ liệu lỗi. HTTP ${res.status}`);
         return;
       }
 

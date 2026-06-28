@@ -63,6 +63,13 @@ def safe_int(value, default=0):
         return default
 
 
+def read_excel_file(file: UploadFile):
+    try:
+        return pd.read_excel(file.file, dtype=str)
+    except Exception as e:
+        raise ValueError(f"Không đọc được file Excel. Vui lòng kiểm tra định dạng .xlsx/.xls. Chi tiết: {e}")
+
+
 # =========================
 # TEMPLATE DOWNLOAD
 # =========================
@@ -176,7 +183,10 @@ async def import_product_master(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    df = pd.read_excel(file.file)
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     required_cols = ["sku", "barcode"]
     missing = [c for c in required_cols if c not in df.columns]
@@ -256,7 +266,10 @@ async def import_sku_master(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    df = pd.read_excel(file.file)
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     required_cols = ["sku"]
     missing = [c for c in required_cols if c not in df.columns]
@@ -345,7 +358,10 @@ async def import_category_aisle(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    df = pd.read_excel(file.file)
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     required_cols = ["category", "zone", "aisle", "priority"]
     missing = [c for c in required_cols if c not in df.columns]
@@ -426,7 +442,10 @@ async def import_po_detail(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    df = pd.read_excel(file.file)
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     col_map = {
         "Mã đơn hàng": "po_no",
@@ -514,7 +533,10 @@ async def import_do_detail(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    df = pd.read_excel(file.file)
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     required_cols = [
         "wave",
