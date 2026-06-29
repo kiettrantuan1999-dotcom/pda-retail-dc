@@ -23,11 +23,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const historySubtitle = document.getElementById("historySubtitle");
   const historyBody = document.getElementById("grHistoryBody");
   const reloadHistoryBtn = document.getElementById("reloadHistoryBtn");
+  const completePaBtn = document.getElementById("completePaBtn");
 
   const editGrBox = document.getElementById("editGrBox");
   const editGrForm = document.getElementById("editGrForm");
   const cancelEditGrBtn = document.getElementById("cancelEditGrBtn");
   const editPalletIdInput = document.getElementById("edit_pallet_id");
+  const editQueueIdInput = document.getElementById("edit_queue_id");
+  const editSkuInput = document.getElementById("edit_sku");
+  const editBarcodeInput = document.getElementById("edit_barcode");
   const editPalletText = document.getElementById("editPalletText");
   const editSkuText = document.getElementById("editSkuText");
   const editProductNameText = document.getElementById("editProductNameText");
@@ -214,6 +218,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!editGrBox || !row) return;
 
     editPalletIdInput.value = row.pallet_id || "";
+    if (editQueueIdInput) editQueueIdInput.value = row.queue_id || "";
+    if (editSkuInput) editSkuInput.value = row.sku || "";
+    if (editBarcodeInput) editBarcodeInput.value = row.barcode || "";
     editPalletText.innerText = row.pallet_id || "-";
     editSkuText.innerText = row.sku || "-";
     if (editProductNameText) editProductNameText.innerText = row.product_name || "-";
@@ -275,7 +282,8 @@ function escapeHtml(value) {
     }
 
     historyBody.innerHTML = rows.map(function (r) {
-      const canEdit = String(r.flow_status || "").toUpperCase() === "WAIT_PUTAWAY";
+      const status = String(r.flow_status || "").toUpperCase();
+      const canEdit = status === "DRAFT" || status === "WAIT_PUTAWAY";
       const pcb = Number(r.pcb || 1);
 
       return `
@@ -293,7 +301,8 @@ function escapeHtml(value) {
                 ? `<button
                      type="button"
                      class="btn btn-sm btn-outline-primary edit-gr-btn"
-                     data-pallet-id="${escapeHtml(r.pallet_id || "")}">
+                     data-pallet-id="${escapeHtml(r.pallet_id || "")}"
+                     data-queue-id="${escapeHtml(r.queue_id || "")}">
                      Sửa
                    </button>`
                 : `<span class="text-muted small">Khóa</span>`
@@ -305,11 +314,12 @@ function escapeHtml(value) {
 
     document.querySelectorAll(".edit-gr-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
+        const queueId = btn.getAttribute("data-queue-id");
         const palletId = btn.getAttribute("data-pallet-id");
-        const row = grHistoryRows[palletId];
+        const row = grHistoryRows[queueId] || grHistoryRows[palletId];
 
         if (!row) {
-          return showError("Không tìm thấy dữ liệu PA cần sửa");
+          return showError("Không tìm thấy dữ liệu dòng SKU cần sửa");
         }
 
         openEditGr(row);
@@ -345,6 +355,7 @@ function escapeHtml(value) {
         r.pcb = Number(r.pcb || 1);
         r.product_name = r.product_name || "";
         r.barcode = r.barcode || "";
+        grHistoryRows[String(r.queue_id)] = r;
         grHistoryRows[r.pallet_id] = r;
       });
 
@@ -592,6 +603,70 @@ function restoreManualInput(targetInput) {
   });
 
 
+  if (completePaBtn) {
+    completePaBtn.addEventListener("click", async function () {
+      const poNo = poInput.value.trim();
+      const palletId = palletInput.value.trim();
+
+      if (!poNo) return showError("Vui lòng nhập/scan PO trước khi hoàn tất PA");
+      if (!palletId) return showError("Vui lòng nhập/scan PA trước khi hoàn tất PA");
+
+      const formData = new FormData();
+      formData.append("po_no", poNo);
+      formData.append("pallet_id", palletId);
+
+      try {
+        completePaBtn.disabled = true;
+        completePaBtn.innerText = "ĐANG HOÀN TẤT PA...";
+
+        const res = await fetch("/api/gr/complete-pa", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          return showError(data.error || "Không hoàn tất được PA");
+        }
+
+        resultBox.classList.remove("d-none");
+        resultTitle.innerText = "✅ Đã hoàn tất PA";
+        resultTitle.className = "fw-bold mb-2 text-success";
+        resultText.innerHTML = `
+          <div><b>PO:</b> ${data.data.po_no}</div>
+          <div><b>PA:</b> ${data.data.pallet_id}</div>
+          <div><b>Tổng SKU:</b> ${data.data.total_sku}</div>
+          <div><b>Tổng SL:</b> ${data.data.total_qty}</div>
+          <div><b>Status:</b> ${data.data.flow_status}</div>
+          <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away.</div>
+        `;
+
+        await loadHistory();
+
+        // Giữ PO để scan PA tiếp theo của cùng PO, clear PA/SKU hiện tại.
+        palletInput.value = "";
+        barcodeInput.value = "";
+        cartonQtyInput.value = "0";
+        looseQtyInput.value = "0";
+        qtyPromoInput.value = "0";
+        clearProductInfo();
+        recalcQtyPreview();
+
+        setTimeout(function () {
+          palletInput.focus();
+          if (palletInput.select) palletInput.select();
+        }, 100);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        completePaBtn.disabled = false;
+        completePaBtn.innerText = "✅ HOÀN TẤT PA";
+      }
+    });
+  }
+
+
   if (editGrForm) {
     editGrForm.addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -609,6 +684,9 @@ function restoreManualInput(targetInput) {
 
       const formData = new FormData();
       formData.append("pallet_id", palletId);
+      if (editQueueIdInput) formData.append("queue_id", editQueueIdInput.value || "");
+      if (editSkuInput) formData.append("sku", editSkuInput.value || "");
+      if (editBarcodeInput) formData.append("barcode", editBarcodeInput.value || "");
       formData.append("pcb", String(pcb));
       formData.append("carton_qty", String(cartonQty));
       formData.append("loose_qty", String(looseQty));
@@ -694,11 +772,14 @@ function restoreManualInput(targetInput) {
           <div><b>SL nhập:</b> ${data.data.qty_gr}</div>
           <div><b>SL khuyến mãi:</b> ${data.data.qty_promo}</div>
           <div><b>Tổng nhập:</b> ${data.data.qty_total}</div>
-          <div><b>Còn Put Away:</b> ${data.data.qty_remain_putaway}</div>
+          <div><b>Còn Put Away dòng SKU:</b> ${data.data.qty_remain_putaway}</div>
+          <div><b>Tổng SKU trên PA:</b> ${data.data.pallet_total_sku || 1}</div>
+          <div><b>Tổng SL trên PA:</b> ${data.data.pallet_total_qty || data.data.qty_total}</div>
           <div><b>Status:</b> ${data.data.flow_status}</div>
+          <div class="text-muted mt-1">Scan SKU tiếp theo trên cùng PA hoặc bấm <b>Hoàn tất PA</b> nếu đã đủ SKU.</div>
         `;
 
-        palletInput.value = "";
+        // Giữ nguyên PA để nhân sự có thể scan nhiều SKU vào cùng pallet.
         barcodeInput.value = "";
         cartonQtyInput.value = "0";
         looseQtyInput.value = "0";
@@ -708,8 +789,8 @@ function restoreManualInput(targetInput) {
         await loadHistory();
 
         setTimeout(function () {
-          palletInput.focus();
-          if (palletInput.select) palletInput.select();
+          barcodeInput.focus();
+          if (barcodeInput.select) barcodeInput.select();
         }, 100);
       } else {
         resultTitle.innerText = "❌ GR lỗi";

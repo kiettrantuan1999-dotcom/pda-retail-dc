@@ -120,6 +120,9 @@ def gr_history(
 def gr_update_qty(
     request: Request,
     pallet_id: str = Form(...),
+    queue_id: int | None = Form(None),
+    sku: str = Form(""),
+    barcode: str = Form(""),
     pcb: int = Form(...),
     carton_qty: int = Form(0),
     loose_qty: int = Form(0),
@@ -134,6 +137,29 @@ def gr_update_qty(
             carton_qty=carton_qty,
             loose_qty=loose_qty,
             qty_promo=qty_promo,
+            user_name=username(request),
+            queue_id=queue_id,
+            sku=sku,
+            barcode=barcode,
+        )
+        return ok(result)
+    except Exception as e:
+        db.rollback()
+        return fail(e)
+
+
+@router.post("/gr/complete-pa")
+def gr_complete_pa(
+    request: Request,
+    po_no: str = Form(...),
+    pallet_id: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = svc.complete_gr_pallet(
+            db=db,
+            po_no=po_no.strip(),
+            pallet_id=pallet_id.strip(),
             user_name=username(request),
         )
         return ok(result)

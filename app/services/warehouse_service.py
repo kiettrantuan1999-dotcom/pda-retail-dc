@@ -6,6 +6,7 @@ from app.models.tables import (
     ProductMaster,
     SkuMaster,
     InboundQueue,
+    PalletHeader,
     PalletDetail,
     GrLog,
     InventoryBalance,
@@ -59,6 +60,11 @@ def confirm_gr(
     user_name: str = "developer",
     qty_gr: int | None = None,
 ):
+    """GR theo mô hình vận hành mới: 1 PO = N PA, 1 PA = N SKU.
+
+    Mỗi lần confirm là thêm/cộng một SKU vào PA. PA không còn bị khóa sau dòng SKU đầu tiên.
+    Nếu cùng PA + cùng SKU/barcode được scan lại khi chưa Put Away thì cộng thêm số lượng vào dòng hiện có.
+    """
     po_no = po_no.strip()
     pallet_id = pallet_id.strip().upper()
     barcode = barcode.strip()
@@ -102,62 +108,110 @@ def confirm_gr(
         qty_base = int(qty_gr or 0)
 
     qty_total = qty_base + qty_promo
-    qty_gr = qty_total
-
-    if qty_base < 0:
-        raise ValueError("Số lượng nhận không được âm")
 
     if qty_total <= 0:
         raise ValueError("Tổng số lượng nhập phải lớn hơn 0")
 
-    existing_pallet = (
+    now = datetime.utcnow()
+
+    # 1 PA chỉ thuộc 1 PO. Nếu scan PA đã thuộc PO khác thì chặn để tránh lẫn chứng từ.
+    pallet_header = db.query(PalletHeader).filter(PalletHeader.pallet_id == pallet_id).first()
+    if pallet_header and pallet_header.po_no != po_no:
+        raise ValueError(f"PA {pallet_id} đã thuộc PO {pallet_header.po_no}, không thể GR vào PO {po_no}")
+
+    if not pallet_header:
+        pallet_header = PalletHeader(
+            pallet_id=pallet_id,
+            po_no=po_no,
+            status="DRAFT",
+            created_by=user_name,
+            created_at=now,
+            last_update=now,
+        )
+        db.add(pallet_header)
+    else:
+        header_status = (pallet_header.status or "").upper()
+        if header_status in ["WAIT_PUTAWAY", "PARTIAL", "DONE"]:
+            raise ValueError("PA đã hoàn tất hoặc đã Put Away, không được thêm SKU. Vui lòng tạo PA mới hoặc nhờ quản lý kiểm tra.")
+        pallet_header.status = "DRAFT"
+        pallet_header.last_update = now
+
+    # Dòng task theo SKU trong cùng PA. Cho phép 1 PA có nhiều SKU.
+    queue = (
         db.query(InboundQueue)
-        .filter(InboundQueue.pallet_id == pallet_id)
+        .filter(
+            InboundQueue.po_no == po_no,
+            InboundQueue.pallet_id == pallet_id,
+            InboundQueue.sku == product.sku,
+            InboundQueue.barcode == barcode,
+        )
         .first()
     )
 
-    if existing_pallet:
-        raise ValueError("PA/Pallet này đã được GR rồi")
+    if queue and (queue.flow_status or "").upper() not in ["DRAFT"]:
+        raise ValueError("Dòng SKU này không còn ở trạng thái DRAFT, không được GR cộng thêm. Vui lòng tạo PA mới hoặc nhờ quản lý kiểm tra.")
 
-    now = datetime.utcnow()
+    old_qty = int(queue.qty_gr or 0) if queue else 0
+
+    if queue:
+        queue.qty_gr = old_qty + qty_total
+        queue.qty_remain_putaway = int(queue.qty_remain_putaway or 0) + qty_total
+        queue.flow_status = "DRAFT"
+        queue.last_update = now
+    else:
+        queue = InboundQueue(
+            po_no=po_no,
+            pallet_id=pallet_id,
+            barcode=barcode,
+            sku=product.sku,
+            qty_gr=qty_total,
+            qty_putaway=0,
+            qty_remain_putaway=qty_total,
+            flow_status="DRAFT",
+            last_update=now,
+        )
+        db.add(queue)
+
+    pallet_detail = (
+        db.query(PalletDetail)
+        .filter(
+            PalletDetail.pallet_id == pallet_id,
+            PalletDetail.sku == product.sku,
+            PalletDetail.barcode == barcode,
+        )
+        .first()
+    )
+
+    if pallet_detail:
+        pallet_detail.qty_gr = int(pallet_detail.qty_gr or 0) + qty_total
+        pallet_detail.qty_remain_putaway = int(pallet_detail.qty_remain_putaway or 0) + qty_total
+        pallet_detail.status = "DRAFT"
+        pallet_detail.last_update = now
+    else:
+        pallet_detail = PalletDetail(
+            pallet_id=pallet_id,
+            po_no=po_no,
+            barcode=barcode,
+            sku=product.sku,
+            qty_gr=qty_total,
+            qty_putaway=0,
+            qty_remain_putaway=qty_total,
+            status="DRAFT",
+            created_at=now,
+            last_update=now,
+        )
+        db.add(pallet_detail)
 
     log = GrLog(
         po_no=po_no,
         pallet_id=pallet_id,
         barcode=barcode,
         sku=product.sku,
-        qty_gr=qty_gr,
+        qty_gr=qty_total,
         user_name=user_name,
     )
 
-    queue = InboundQueue(
-        po_no=po_no,
-        pallet_id=pallet_id,
-        barcode=barcode,
-        sku=product.sku,
-        qty_gr=qty_gr,
-        qty_putaway=0,
-        qty_remain_putaway=qty_total,
-        flow_status="WAIT_PUTAWAY",
-        last_update=now,
-    )
-
-    pallet_detail = PalletDetail(
-        pallet_id=pallet_id,
-        po_no=po_no,
-        barcode=barcode,
-        sku=product.sku,
-        qty_gr=qty_gr,
-        qty_putaway=0,
-        qty_remain_putaway=qty_total,
-        status="WAIT_PUTAWAY",
-        created_at=now,
-        last_update=now,
-    )
-
     db.add(log)
-    db.add(queue)
-    db.add(pallet_detail)
     db.add(AuditLog(
         operation="GR",
         reference_no=po_no,
@@ -165,17 +219,23 @@ def confirm_gr(
         location_id="",
         sku=product.sku,
         barcode=barcode,
-        qty_before=0,
-        qty_after=qty_total,
+        qty_before=old_qty,
+        qty_after=old_qty + qty_total,
         qty_change=qty_total,
         qty_regular=qty_base,
         qty_promo=qty_promo,
         qty_total=qty_total,
         user_name=user_name,
-        remark=f"Nhận hàng: PCB={pcb}, thùng chẵn={carton_qty}, kiện lẻ={loose_qty}, hàng thường={qty_base}, khuyến mãi={qty_promo}, tổng={qty_total}",
+        remark=(
+            f"Nhận hàng mixed PA: PCB={pcb}, thùng chẵn={carton_qty}, "
+            f"kiện lẻ={loose_qty}, hàng thường={qty_base}, khuyến mãi={qty_promo}, "
+            f"tổng dòng={qty_total}, PA={pallet_id}"
+        ),
     ))
     db.commit()
     db.refresh(queue)
+
+    pallet_summary = get_gr_pallet_summary(db, po_no, pallet_id)
 
     return {
         "queue_id": queue.queue_id,
@@ -190,10 +250,133 @@ def confirm_gr(
         "qty_promo": qty_promo,
         "product_name": product.product_name or "",
         "qty_total": qty_total,
+        "line_total_after": queue.qty_gr,
+        "pallet_total_sku": pallet_summary["total_sku"],
+        "pallet_total_qty": pallet_summary["total_qty"],
         "qty_remain_putaway": queue.qty_remain_putaway,
         "flow_status": queue.flow_status,
     }
 
+
+def get_gr_pallet_summary(db: Session, po_no: str, pallet_id: str):
+    rows = (
+        db.query(InboundQueue)
+        .filter(InboundQueue.po_no == po_no, InboundQueue.pallet_id == pallet_id)
+        .all()
+    )
+    return {
+        "total_sku": len(rows),
+        "total_qty": sum(int(r.qty_gr or 0) for r in rows),
+        "total_remain": sum(int(r.qty_remain_putaway or 0) for r in rows),
+    }
+
+
+def complete_gr_pallet(
+    db: Session,
+    po_no: str,
+    pallet_id: str,
+    user_name: str = "developer",
+):
+    """Hoàn tất PA sau khi đã scan đủ SKU.
+
+    Chuyển toàn bộ dòng SKU của PA từ DRAFT sang WAIT_PUTAWAY.
+    Chỉ sau bước này PA mới xuất hiện ở Put Away.
+    """
+    po_no = (po_no or "").strip()
+    pallet_id = (pallet_id or "").strip().upper()
+
+    if not po_no:
+        raise ValueError("Vui lòng nhập PO trước khi hoàn tất PA")
+
+    if not pallet_id:
+        raise ValueError("Vui lòng nhập PA trước khi hoàn tất PA")
+
+    queues = (
+        db.query(InboundQueue)
+        .filter(
+            InboundQueue.po_no == po_no,
+            InboundQueue.pallet_id == pallet_id,
+        )
+        .order_by(InboundQueue.queue_id.asc())
+        .all()
+    )
+
+    if not queues:
+        raise ValueError("PA chưa có SKU nào, không thể hoàn tất")
+
+    statuses = {(q.flow_status or "").upper() for q in queues}
+    if "DONE" in statuses or "PARTIAL" in statuses:
+        raise ValueError("PA đã Put Away một phần/toàn bộ, không thể hoàn tất lại")
+
+    now = datetime.utcnow()
+    changed = 0
+
+    for q in queues:
+        status = (q.flow_status or "").upper()
+        if status == "DRAFT":
+            q.flow_status = "WAIT_PUTAWAY"
+            q.last_update = now
+            changed += 1
+        elif status == "WAIT_PUTAWAY":
+            # Idempotent: PA đã hoàn tất trước đó.
+            q.last_update = now
+        else:
+            raise ValueError(f"Dòng SKU {q.sku} đang ở trạng thái {q.flow_status}, không thể hoàn tất PA")
+
+    detail_rows = (
+        db.query(PalletDetail)
+        .filter(
+            PalletDetail.po_no == po_no,
+            PalletDetail.pallet_id == pallet_id,
+        )
+        .all()
+    )
+
+    for d in detail_rows:
+        status = (d.status or "").upper()
+        if status in ["DRAFT", "WAIT_PUTAWAY", ""]:
+            d.status = "WAIT_PUTAWAY"
+            d.last_update = now
+
+    pallet_header = db.query(PalletHeader).filter(PalletHeader.pallet_id == pallet_id).first()
+    if pallet_header:
+        if pallet_header.po_no != po_no:
+            raise ValueError(f"PA {pallet_id} đang thuộc PO {pallet_header.po_no}, không thể hoàn tất cho PO {po_no}")
+        pallet_header.status = "WAIT_PUTAWAY"
+        pallet_header.last_update = now
+
+    total_sku = len(queues)
+    total_qty = sum(int(q.qty_gr or 0) for q in queues)
+    total_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
+
+    db.add(AuditLog(
+        operation="GR_COMPLETE_PA",
+        reference_no=po_no,
+        pallet_id=pallet_id,
+        location_id="",
+        sku="MIXED" if total_sku > 1 else queues[0].sku,
+        barcode="",
+        qty_before=0,
+        qty_after=total_qty,
+        qty_change=total_qty,
+        qty_regular=total_qty,
+        qty_promo=0,
+        qty_total=total_qty,
+        user_name=user_name,
+        remark=f"Hoàn tất PA: {pallet_id}, tổng SKU={total_sku}, tổng SL={total_qty}, dòng chuyển trạng thái={changed}",
+    ))
+
+    db.commit()
+
+    return {
+        "po_no": po_no,
+        "pallet_id": pallet_id,
+        "total_sku": total_sku,
+        "total_qty": total_qty,
+        "total_remain": total_remain,
+        "flow_status": "WAIT_PUTAWAY",
+        "changed_lines": changed,
+    }
 
 def get_gr_history_by_po(db: Session, po_no: str, limit: int = 50):
     po_no = po_no.strip()
@@ -204,7 +387,7 @@ def get_gr_history_by_po(db: Session, po_no: str, limit: int = 50):
     return (
         db.query(InboundQueue)
         .filter(InboundQueue.po_no == po_no)
-        .order_by(InboundQueue.queue_id.desc())
+        .order_by(InboundQueue.pallet_id.asc(), InboundQueue.queue_id.desc())
         .limit(limit)
         .all()
     )
@@ -219,15 +402,25 @@ def update_gr_qty_after_confirm(
     loose_qty: int,
     qty_promo: int,
     user_name: str = "developer",
+    queue_id: int | None = None,
+    sku: str | None = None,
+    barcode: str | None = None,
 ):
+    """Sửa số lượng GR theo từng dòng SKU trong PA.
+
+    Với mô hình 1 PA = N SKU, không được định danh dòng sửa chỉ bằng pallet_id nữa.
+    Ưu tiên queue_id; fallback pallet_id + sku/barcode để tương thích.
+    """
     pallet_id = (pallet_id or "").strip().upper()
+    sku = (sku or "").strip()
+    barcode = (barcode or "").strip()
     pcb = int(pcb or 0)
     carton_qty = int(carton_qty or 0)
     loose_qty = int(loose_qty or 0)
     qty_promo = int(qty_promo or 0)
 
-    if not pallet_id:
-        raise ValueError("Thiếu mã PA")
+    if not pallet_id and not queue_id:
+        raise ValueError("Thiếu mã PA hoặc dòng GR cần sửa")
 
     if pcb <= 0:
         raise ValueError("PCB phải lớn hơn 0")
@@ -241,18 +434,24 @@ def update_gr_qty_after_confirm(
     if qty_total <= 0:
         raise ValueError("Tổng số lượng mới phải lớn hơn 0")
 
-    queue = (
-        db.query(InboundQueue)
-        .filter(InboundQueue.pallet_id == pallet_id)
-        .first()
-    )
+    q = db.query(InboundQueue)
+    if queue_id:
+        q = q.filter(InboundQueue.queue_id == int(queue_id))
+    else:
+        q = q.filter(InboundQueue.pallet_id == pallet_id)
+        if sku:
+            q = q.filter(InboundQueue.sku == sku)
+        if barcode:
+            q = q.filter(InboundQueue.barcode == barcode)
+
+    queue = q.first()
 
     if not queue:
-        raise ValueError("Không tìm thấy PA trong danh sách GR")
+        raise ValueError("Không tìm thấy dòng GR cần sửa")
 
     flow_status = (queue.flow_status or "").upper()
-    if flow_status != "WAIT_PUTAWAY":
-        raise ValueError("PA đã Put Away, không được sửa GR. Vui lòng dùng Inventory Adjustment.")
+    if flow_status not in ["DRAFT", "WAIT_PUTAWAY"]:
+        raise ValueError("Dòng này đã Put Away, không được sửa GR. Vui lòng dùng Inventory Adjustment.")
 
     old_qty = int(queue.qty_gr or 0)
     now = datetime.utcnow()
@@ -261,11 +460,12 @@ def update_gr_qty_after_confirm(
     queue.qty_remain_putaway = qty_total
     queue.last_update = now
 
-    pallet_detail = (
-        db.query(PalletDetail)
-        .filter(PalletDetail.pallet_id == pallet_id)
-        .first()
+    pallet_detail_q = db.query(PalletDetail).filter(
+        PalletDetail.pallet_id == queue.pallet_id,
+        PalletDetail.sku == queue.sku,
+        PalletDetail.barcode == queue.barcode,
     )
+    pallet_detail = pallet_detail_q.first()
 
     if pallet_detail:
         pallet_detail.qty_gr = qty_total
@@ -274,7 +474,11 @@ def update_gr_qty_after_confirm(
 
     gr_log = (
         db.query(GrLog)
-        .filter(GrLog.pallet_id == pallet_id)
+        .filter(
+            GrLog.pallet_id == queue.pallet_id,
+            GrLog.sku == queue.sku,
+            GrLog.barcode == queue.barcode,
+        )
         .order_by(GrLog.gr_id.desc())
         .first()
     )
@@ -297,7 +501,7 @@ def update_gr_qty_after_confirm(
         qty_total=qty_total,
         user_name=user_name,
         remark=(
-            f"Sửa SL GR: PCB={pcb}, thùng={carton_qty}, "
+            f"Sửa SL GR mixed PA: PCB={pcb}, thùng={carton_qty}, "
             f"lẻ={loose_qty}, hàng thường={qty_base}, KM={qty_promo}, tổng={qty_total}"
         ),
     ))
@@ -306,6 +510,7 @@ def update_gr_qty_after_confirm(
     db.refresh(queue)
 
     return {
+        "queue_id": queue.queue_id,
         "pallet_id": queue.pallet_id,
         "po_no": queue.po_no,
         "sku": queue.sku,
@@ -320,7 +525,6 @@ def update_gr_qty_after_confirm(
         "qty_remain_putaway": queue.qty_remain_putaway,
         "flow_status": queue.flow_status,
     }
-
 
 def get_wait_putaway_tasks(db: Session):
     return (
@@ -501,61 +705,94 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
 def get_putaway_by_pallet(db: Session, pallet_id: str):
     pallet_id = pallet_id.strip().upper()
 
-    queue = (
+    queues = (
         db.query(InboundQueue)
         .filter(
             InboundQueue.pallet_id == pallet_id,
             InboundQueue.flow_status.in_(["WAIT_PUTAWAY", "PARTIAL"]),
         )
-        .first()
+        .order_by(InboundQueue.queue_id.asc())
+        .all()
     )
 
-    if not queue:
+    if not queues:
         raise ValueError("Không tìm thấy PA cần Put Away")
 
-    product = (
-        db.query(ProductMaster)
-        .filter(ProductMaster.sku == queue.sku)
-        .first()
-    )
+    po_no = queues[0].po_no
+    total_sku = len(queues)
+    total_qty_gr = sum(int(q.qty_gr or 0) for q in queues)
+    total_qty_putaway = sum(int(q.qty_putaway or 0) for q in queues)
+    total_qty_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
 
-    sku_master = db.query(SkuMaster).filter(SkuMaster.sku == queue.sku).first()
-    pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
-    sku_type = sku_master.sku_type if sku_master else ""
+    detail_lines = []
+    dominant_queue = sorted(queues, key=lambda x: int(x.qty_remain_putaway or x.qty_gr or 0), reverse=True)[0]
 
-    product_name = product.product_name if product else ""
-    category = product.category if product else ""
-    putaway_type = _detect_putaway_type(queue.qty_gr, pcb, sku_type)
-    putaway_type_label = _putaway_type_label(putaway_type)
+    for q in queues:
+        product = db.query(ProductMaster).filter(ProductMaster.sku == q.sku).first()
+        sku_master = db.query(SkuMaster).filter(SkuMaster.sku == q.sku).first()
+        pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
+        sku_type = sku_master.sku_type if sku_master else ""
+        product_name = product.product_name if product else ""
+        category = product.category if product else ""
+        putaway_type = _detect_putaway_type(q.qty_gr, pcb, sku_type)
+
+        detail_lines.append({
+            "queue_id": q.queue_id,
+            "po_no": q.po_no,
+            "pallet_id": q.pallet_id,
+            "sku": q.sku,
+            "barcode": q.barcode,
+            "product_name": product_name,
+            "category": category,
+            "pcb": int(pcb or 1),
+            "sku_type": sku_type or "",
+            "putaway_type": putaway_type,
+            "putaway_type_label": _putaway_type_label(putaway_type),
+            "qty_gr": int(q.qty_gr or 0),
+            "qty_putaway": int(q.qty_putaway or 0),
+            "qty_remain_putaway": int(q.qty_remain_putaway or 0),
+            "flow_status": q.flow_status,
+        })
+
+    dominant_product = db.query(ProductMaster).filter(ProductMaster.sku == dominant_queue.sku).first()
+    dominant_sku_master = db.query(SkuMaster).filter(SkuMaster.sku == dominant_queue.sku).first()
+    dominant_pcb = dominant_sku_master.pcb if dominant_sku_master and dominant_sku_master.pcb else 1
+    dominant_sku_type = dominant_sku_master.sku_type if dominant_sku_master else ""
+    dominant_product_name = dominant_product.product_name if dominant_product else ""
+    dominant_category = dominant_product.category if dominant_product else ""
+    dominant_putaway_type = _detect_putaway_type(dominant_queue.qty_gr, dominant_pcb, dominant_sku_type)
 
     suggestions = _build_putaway_suggestions(
         db=db,
-        sku=queue.sku,
-        barcode=queue.barcode,
-        product_name=product_name,
-        category=category,
-        putaway_type=putaway_type,
+        sku=dominant_queue.sku,
+        barcode=dominant_queue.barcode,
+        product_name=dominant_product_name,
+        category=dominant_category,
+        putaway_type=dominant_putaway_type,
     )
 
     return {
-        "queue_id": queue.queue_id,
-        "po_no": queue.po_no,
-        "pallet_id": queue.pallet_id,
-        "sku": queue.sku,
-        "barcode": queue.barcode,
-        "product_name": product_name,
-        "category": category,
-        "pcb": int(pcb or 1),
-        "sku_type": sku_type or "",
-        "putaway_type": putaway_type,
-        "putaway_type_label": putaway_type_label,
-        "putaway_type_color": "success" if putaway_type == "CHAN" else "warning",
-        "qty_gr": queue.qty_gr,
-        "qty_putaway": queue.qty_putaway,
-        "qty_remain_putaway": queue.qty_remain_putaway,
-        "flow_status": queue.flow_status,
+        "queue_id": dominant_queue.queue_id,
+        "po_no": po_no,
+        "pallet_id": pallet_id,
+        "sku": dominant_queue.sku,
+        "barcode": dominant_queue.barcode,
+        "product_name": dominant_product_name,
+        "category": dominant_category,
+        "pcb": int(dominant_pcb or 1),
+        "sku_type": dominant_sku_type or "",
+        "putaway_type": dominant_putaway_type,
+        "putaway_type_label": _putaway_type_label(dominant_putaway_type),
+        "putaway_type_color": "success" if dominant_putaway_type == "CHAN" else "warning",
+        "qty_gr": total_qty_gr,
+        "qty_putaway": total_qty_putaway,
+        "qty_remain_putaway": total_qty_remain,
+        "flow_status": "WAIT_PUTAWAY" if total_qty_remain > 0 else "DONE",
+        "total_sku": total_sku,
+        "is_mixed_sku": total_sku > 1,
+        "detail_lines": detail_lines,
         "suggestion_source": suggestions["source"],
-        "suggestion_source_label": suggestions["source_label"],
+        "suggestion_source_label": suggestions["source_label"] + (" · Theo SKU số lượng lớn nhất" if total_sku > 1 else ""),
         "suggested_aisles": suggestions["rows"],
         "suggested_locations": suggestions.get("locations", []),
     }
@@ -567,42 +804,46 @@ def confirm_putaway(
     qty_putaway: int,
     user_name: str,
 ):
+    """Put Away theo PA. Nếu PA có nhiều SKU thì cất toàn bộ các dòng SKU của PA vào cùng location."""
     location_id = location_id.strip().upper()
     scanned_aisle = _location_aisle(location_id)
 
     if not location_id:
         raise ValueError("Vui lòng scan vị trí")
 
-    if qty_putaway <= 0:
-        raise ValueError("Số lượng Put Away không hợp lệ")
-
     try:
-        queue = (
-            db.query(InboundQueue)
-            .filter(InboundQueue.queue_id == queue_id)
-            .first()
-        )
-
-        if not queue:
+        first_queue = db.query(InboundQueue).filter(InboundQueue.queue_id == queue_id).first()
+        if not first_queue:
             raise ValueError("Không tìm thấy task Put Away")
 
-        if queue.flow_status not in ["WAIT_PUTAWAY", "PARTIAL"]:
-            raise ValueError("Task không còn Put Away được")
-
-        if qty_putaway > queue.qty_remain_putaway:
-            raise ValueError("Số lượng Put Away vượt số lượng còn lại")
-
-        location = (
-            db.query(LocationMaster)
-            .filter(LocationMaster.location_id == location_id)
-            .first()
+        queues = (
+            db.query(InboundQueue)
+            .filter(
+                InboundQueue.pallet_id == first_queue.pallet_id,
+                InboundQueue.flow_status.in_(["WAIT_PUTAWAY", "PARTIAL"]),
+            )
+            .order_by(InboundQueue.queue_id.asc())
+            .all()
         )
+
+        if not queues:
+            raise ValueError("PA không còn dòng nào cần Put Away")
+
+        total_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
+        if total_remain <= 0:
+            raise ValueError("PA không còn số lượng cần Put Away")
+
+        if qty_putaway and int(qty_putaway or 0) != total_remain:
+            # Với mixed SKU pallet, Put Away là cất nguyên PA để tránh chia nhỏ sai tồn.
+            raise ValueError(f"PA mixed SKU phải cất nguyên pallet. Số lượng cần cất: {total_remain}")
+
+        location = db.query(LocationMaster).filter(LocationMaster.location_id == location_id).first()
 
         is_temp_location = False
         location_status = "ACTIVE"
         location_warning = ""
 
-        task_info = get_putaway_by_pallet(db, queue.pallet_id)
+        task_info = get_putaway_by_pallet(db, first_queue.pallet_id)
         suggested_aisles = [str(x.get("aisle", "")).upper() for x in task_info.get("suggested_aisles", []) if x.get("aisle")]
         if location and getattr(location, "aisle", ""):
             scanned_aisle = str(location.aisle or scanned_aisle).upper()
@@ -611,99 +852,108 @@ def confirm_putaway(
 
         if location:
             location_status = location.status or "ACTIVE"
-
             if location_status == "BLOCK":
                 raise ValueError("Vị trí đang bị khóa, không thể Put Away")
-
             if location_status == "TEMP":
                 is_temp_location = True
-
         else:
             is_temp_location = True
-
-            issue = MasterDataIssue(
+            db.add(MasterDataIssue(
                 issue_type="LOCATION_NOT_IN_MASTER",
-                sku=queue.sku,
-                barcode=queue.barcode,
-                pallet_id=queue.pallet_id,
+                sku="MIXED" if len(queues) > 1 else queues[0].sku,
+                barcode="",
+                pallet_id=first_queue.pallet_id,
                 location_id=location_id,
                 source_module="PUTAWAY",
-                source_ref_id=str(queue.queue_id),
+                source_ref_id=str(first_queue.queue_id),
                 created_by=user_name,
-                note="Put Away vào vị trí tạm/chưa có trong location_master",
-            )
+                note="Put Away PA vào vị trí tạm/chưa có trong location_master",
+            ))
 
-            db.add(issue)
+        now = datetime.utcnow()
+        total_putaway = 0
 
-        inv = (
-            db.query(InventoryBalance)
-            .filter(
+        for queue in queues:
+            line_qty = int(queue.qty_remain_putaway or 0)
+            if line_qty <= 0:
+                continue
+
+            inv = db.query(InventoryBalance).filter(
                 InventoryBalance.sku == queue.sku,
                 InventoryBalance.location_id == location_id,
-            )
-            .first()
-        )
+            ).first()
 
-        if inv:
-            inv.qty_onhand += qty_putaway
-            inv.last_update = datetime.utcnow()
-        else:
-            inv = InventoryBalance(
+            if inv:
+                inv.qty_onhand += line_qty
+                inv.last_update = now
+            else:
+                db.add(InventoryBalance(
+                    sku=queue.sku,
+                    barcode=queue.barcode,
+                    location_id=location_id,
+                    qty_onhand=line_qty,
+                    last_update=now,
+                ))
+
+            db.add(PutawayLog(
+                queue_id=queue.queue_id,
+                pallet_id=queue.pallet_id,
                 sku=queue.sku,
                 barcode=queue.barcode,
                 location_id=location_id,
-                qty_onhand=qty_putaway,
-                last_update=datetime.utcnow(),
-            )
-            db.add(inv)
+                qty_putaway=line_qty,
+                user_name=user_name,
+            ))
 
-        log = PutawayLog(
-            queue_id=queue.queue_id,
-            pallet_id=queue.pallet_id,
-            sku=queue.sku,
-            barcode=queue.barcode,
-            location_id=location_id,
-            qty_putaway=qty_putaway,
-            user_name=user_name,
-        )
+            db.add(AuditLog(
+                operation="PUTAWAY",
+                reference_no=queue.po_no,
+                pallet_id=queue.pallet_id,
+                location_id=location_id,
+                sku=queue.sku,
+                barcode=queue.barcode,
+                qty_before=queue.qty_remain_putaway,
+                qty_after=0,
+                qty_change=-line_qty,
+                user_name=user_name,
+                remark="Cất hàng PA mixed SKU vào vị trí",
+            ))
 
-        db.add(log)
-        db.add(AuditLog(
-            operation="PUTAWAY",
-            reference_no=queue.po_no,
-            pallet_id=queue.pallet_id,
-            location_id=location_id,
-            sku=queue.sku,
-            barcode=queue.barcode,
-            qty_before=queue.qty_remain_putaway,
-            qty_after=queue.qty_remain_putaway - qty_putaway,
-            qty_change=-qty_putaway,
-            user_name=user_name,
-            remark="Cất hàng vào vị trí",
-        ))
-
-        queue.qty_putaway += qty_putaway
-        queue.qty_remain_putaway -= qty_putaway
-
-        if queue.qty_remain_putaway == 0:
+            queue.qty_putaway = int(queue.qty_putaway or 0) + line_qty
+            queue.qty_remain_putaway = 0
             queue.flow_status = "DONE"
-        else:
-            queue.flow_status = "PARTIAL"
+            queue.last_update = now
 
-        queue.last_update = datetime.utcnow()
+            pallet_detail = db.query(PalletDetail).filter(
+                PalletDetail.pallet_id == queue.pallet_id,
+                PalletDetail.sku == queue.sku,
+                PalletDetail.barcode == queue.barcode,
+            ).first()
+            if pallet_detail:
+                pallet_detail.qty_putaway = int(pallet_detail.qty_putaway or 0) + line_qty
+                pallet_detail.qty_remain_putaway = 0
+                pallet_detail.status = "DONE"
+                pallet_detail.last_update = now
+
+            total_putaway += line_qty
+
+        pallet_header = db.query(PalletHeader).filter(PalletHeader.pallet_id == first_queue.pallet_id).first()
+        if pallet_header:
+            pallet_header.status = "DONE"
+            pallet_header.last_update = now
 
         db.commit()
-        db.refresh(queue)
 
         return {
-            "queue_id": queue.queue_id,
-            "pallet_id": queue.pallet_id,
-            "sku": queue.sku,
-            "barcode": queue.barcode,
+            "queue_id": first_queue.queue_id,
+            "pallet_id": first_queue.pallet_id,
+            "sku": "MIXED" if len(queues) > 1 else queues[0].sku,
+            "barcode": "",
             "location_id": location_id,
-            "qty_putaway": qty_putaway,
-            "qty_remain_putaway": queue.qty_remain_putaway,
-            "flow_status": queue.flow_status,
+            "qty_putaway": total_putaway,
+            "qty_remain_putaway": 0,
+            "flow_status": "DONE",
+            "total_sku": len(queues),
             "location_status": location_status,
             "is_temp_location": is_temp_location,
             "location_warning": location_warning,
@@ -714,7 +964,6 @@ def confirm_putaway(
     except Exception:
         db.rollback()
         raise
-
 
 def search_inventory(db: Session, q: str = ""):
     query = db.query(InventoryBalance)
