@@ -168,6 +168,9 @@ def confirm_gr(
         qty_before=0,
         qty_after=qty_total,
         qty_change=qty_total,
+        qty_regular=qty_base,
+        qty_promo=qty_promo,
+        qty_total=qty_total,
         user_name=user_name,
         remark=f"Nhận hàng: PCB={pcb}, thùng chẵn={carton_qty}, kiện lẻ={loose_qty}, hàng thường={qty_base}, khuyến mãi={qty_promo}, tổng={qty_total}",
     ))
@@ -289,10 +292,13 @@ def update_gr_qty_after_confirm(
         qty_before=old_qty,
         qty_after=qty_total,
         qty_change=qty_total - old_qty,
+        qty_regular=qty_base,
+        qty_promo=qty_promo,
+        qty_total=qty_total,
         user_name=user_name,
         remark=(
             f"Sửa SL GR: PCB={pcb}, thùng={carton_qty}, "
-            f"lẻ={loose_qty}, KM={qty_promo}, tổng={qty_total}"
+            f"lẻ={loose_qty}, hàng thường={qty_base}, KM={qty_promo}, tổng={qty_total}"
         ),
     ))
 

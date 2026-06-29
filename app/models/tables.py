@@ -500,6 +500,11 @@ class AuditLog(Base):
     qty_after: Mapped[int] = mapped_column(Integer, default=0)
     qty_change: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Sprint 24.4 - tách số lượng hàng thường / khuyến mãi / tổng để truy vết GR rõ hơn.
+    qty_regular: Mapped[int] = mapped_column(Integer, default=0)
+    qty_promo: Mapped[int] = mapped_column(Integer, default=0)
+    qty_total: Mapped[int] = mapped_column(Integer, default=0)
+
     user_name: Mapped[str] = mapped_column(String(100), index=True, default="")
     remark: Mapped[str] = mapped_column(Text, default="")
 

@@ -113,6 +113,9 @@
                     <th>Trước</th>
                     <th>Sau</th>
                     <th>Chênh</th>
+                    <th>SL thường</th>
+                    <th>SL KM</th>
+                    <th>Tổng SL</th>
                     <th>User</th>
                     <th>Ghi chú</th>
                 </tr>
@@ -130,12 +133,15 @@
                     <td class="text-end">{{ r.qty_before }}</td>
                     <td class="text-end">{{ r.qty_after }}</td>
                     <td class="text-end">{{ r.qty_change }}</td>
+                    <td class="text-end fw-semibold">{{ r.qty_regular or 0 }}</td>
+                    <td class="text-end fw-semibold">{{ r.qty_promo or 0 }}</td>
+                    <td class="text-end fw-semibold">{{ r.qty_total or r.qty_after or 0 }}</td>
                     <td>{{ r.user_name }}</td>
                     <td>{{ r.remark }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="12" class="text-center text-muted py-4">Chưa có dữ liệu audit.</td>
+                    <td colspan="15" class="text-center text-muted py-4">Chưa có dữ liệu audit.</td>
                 </tr>
                 {% endfor %}
             </tbody>

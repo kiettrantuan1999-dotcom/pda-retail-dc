@@ -16,6 +16,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 OPERATION_LABELS = {
     "GR": "Nhận hàng",
+    "GR_EDIT_QTY": "Sửa SL GR",
     "PUTAWAY": "Cất hàng",
     "COUNT": "Kiểm kê",
     "ADJUST": "Điều chỉnh tồn",
@@ -209,7 +210,8 @@ def audit_export(
     writer = csv.writer(output)
     writer.writerow([
         "event_time", "operation", "reference_no", "pallet_id", "location_id",
-        "sku", "barcode", "qty_before", "qty_after", "qty_change", "user_name", "remark"
+        "sku", "barcode", "qty_before", "qty_after", "qty_change",
+        "qty_regular", "qty_promo", "qty_total", "user_name", "remark"
     ])
     for r in rows:
         writer.writerow([
@@ -223,6 +225,9 @@ def audit_export(
             r.qty_before,
             r.qty_after,
             r.qty_change,
+            r.qty_regular or 0,
+            r.qty_promo or 0,
+            r.qty_total or r.qty_after or 0,
             r.user_name,
             r.remark,
         ])
