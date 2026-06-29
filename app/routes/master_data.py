@@ -85,6 +85,30 @@ def normalize_putaway_type(value):
     return text
 
 
+def parse_location_parts(location_id: str):
+    text = safe_text(location_id).upper()
+    parts = text.replace("_", "-").replace(".", "-").split("-")
+    aisle = parts[0] if len(parts) >= 1 else ""
+    bay = parts[1] if len(parts) >= 2 else ""
+    level = parts[2] if len(parts) >= 3 else ""
+    return aisle, bay, level
+
+
+def auto_location_index(location_id: str, fallback: int = 999999) -> int:
+    aisle, bay, level = parse_location_parts(location_id)
+    import re
+
+    m = re.search(r"(\d+)", aisle or "")
+    aisle_no = int(m.group(1)) if m else fallback // 10000
+    bay_no = safe_int(bay, 0)
+    level_no = safe_int(level, 0)
+
+    if aisle_no <= 0:
+        return fallback
+
+    return aisle_no * 10000 + bay_no * 100 + level_no
+
+
 def read_excel_file(file: UploadFile):
     try:
         return pd.read_excel(file.file, dtype=str)
@@ -173,7 +197,12 @@ def download_location_master_template():
                 "location_type": "PICK_FACE",
                 "status": "ACTIVE",
                 "max_capacity": 1,
+                "aisle": "A01",
+                "bay": "01",
+                "level": "01",
                 "pick_index": 1,
+                "putaway_index": 1,
+                "travel_sequence": 1,
             },
             {
                 "location_id": "P01-01-01",
@@ -181,7 +210,12 @@ def download_location_master_template():
                 "location_type": "PALLET",
                 "status": "ACTIVE",
                 "max_capacity": 1,
+                "aisle": "P01",
+                "bay": "01",
+                "level": "01",
                 "pick_index": 100,
+                "putaway_index": 100,
+                "travel_sequence": 100,
             },
         ]
     )
@@ -555,7 +589,16 @@ async def import_location_master(
             location_type = safe_text(row.get("location_type"), "PICK_FACE") or "PICK_FACE"
             status = safe_text(row.get("status"), "ACTIVE").upper() or "ACTIVE"
             max_capacity = safe_int(row.get("max_capacity"), 1)
-            pick_index = safe_int(row.get("pick_index"), 999999)
+
+            parsed_aisle, parsed_bay, parsed_level = parse_location_parts(location_id)
+            aisle = safe_text(row.get("aisle"), parsed_aisle).upper() or parsed_aisle
+            bay = safe_text(row.get("bay"), parsed_bay) or parsed_bay
+            level = safe_text(row.get("level"), parsed_level) or parsed_level
+
+            auto_index = auto_location_index(location_id)
+            pick_index = safe_int(row.get("pick_index"), auto_index)
+            putaway_index = safe_int(row.get("putaway_index"), pick_index)
+            travel_sequence = safe_int(row.get("travel_sequence"), pick_index)
 
             existing = db.query(LocationMaster).filter(LocationMaster.location_id == location_id).first()
             if existing:
@@ -563,7 +606,12 @@ async def import_location_master(
                 existing.location_type = location_type
                 existing.status = status
                 existing.max_capacity = max_capacity
+                existing.aisle = aisle
+                existing.bay = bay
+                existing.level = level
                 existing.pick_index = pick_index
+                existing.putaway_index = putaway_index
+                existing.travel_sequence = travel_sequence
                 updated += 1
             else:
                 db.add(LocationMaster(
@@ -572,7 +620,12 @@ async def import_location_master(
                     location_type=location_type,
                     status=status,
                     max_capacity=max_capacity,
+                    aisle=aisle,
+                    bay=bay,
+                    level=level,
                     pick_index=pick_index,
+                    putaway_index=putaway_index,
+                    travel_sequence=travel_sequence,
                 ))
                 inserted += 1
 

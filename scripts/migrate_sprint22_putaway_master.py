@@ -15,6 +15,34 @@ ADD COLUMN IF NOT EXISTS putaway_type VARCHAR(20) DEFAULT '';
 ALTER TABLE category_aisle_master
 ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 
+ALTER TABLE location_master
+ADD COLUMN IF NOT EXISTS aisle VARCHAR(30) DEFAULT '';
+
+ALTER TABLE location_master
+ADD COLUMN IF NOT EXISTS bay VARCHAR(30) DEFAULT '';
+
+ALTER TABLE location_master
+ADD COLUMN IF NOT EXISTS level VARCHAR(30) DEFAULT '';
+
+ALTER TABLE location_master
+ADD COLUMN IF NOT EXISTS putaway_index INTEGER DEFAULT 999999;
+
+ALTER TABLE location_master
+ADD COLUMN IF NOT EXISTS travel_sequence INTEGER DEFAULT 999999;
+
+UPDATE location_master
+SET aisle = COALESCE(NULLIF(aisle, ''), split_part(location_id, '-', 1));
+
+UPDATE location_master
+SET putaway_index = COALESCE(NULLIF(putaway_index, 999999), pick_index, 999999),
+    travel_sequence = COALESCE(NULLIF(travel_sequence, 999999), pick_index, 999999);
+
+CREATE INDEX IF NOT EXISTS ix_location_master_aisle ON location_master (aisle);
+CREATE INDEX IF NOT EXISTS ix_location_master_status ON location_master (status);
+CREATE INDEX IF NOT EXISTS ix_location_master_pick_index ON location_master (pick_index);
+CREATE INDEX IF NOT EXISTS ix_location_master_putaway_index ON location_master (putaway_index);
+CREATE INDEX IF NOT EXISTS ix_location_master_travel_sequence ON location_master (travel_sequence);
+
 CREATE TABLE IF NOT EXISTS sku_location_override (
     id SERIAL PRIMARY KEY,
     sku VARCHAR(100) NOT NULL,
@@ -40,4 +68,4 @@ CREATE INDEX IF NOT EXISTS ix_sku_location_override_putaway_type ON sku_location
 with engine.begin() as conn:
     conn.execute(text(SQL))
 
-print("OK: Sprint 22 Put Away master migration completed")
+print("OK: Sprint 22 Put Away + Master Rule + Location Index migration completed")

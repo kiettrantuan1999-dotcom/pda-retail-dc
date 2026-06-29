@@ -45,6 +45,20 @@ def tinh_so_tem_tren_phieu(header, details) -> int:
 
 
 def lay_vi_tri_uu_tien(db: Session, sku: str):
+    """
+    Trả về vị trí pick tốt nhất cho SKU theo master location pick_index.
+
+    Ghi chú vận hành:
+    - pick_index nằm trong location_master do user import từ master data.
+    - Khi tạo phiếu lấy hàng, hệ thống lưu snapshot pick_index vào picking_detail.
+    - Khi in/xem phiếu, chỉ cần ORDER BY picking_detail.pick_index.
+    - Nếu SKU chưa có tồn hoặc location chưa có master index, đẩy xuống cuối phiếu bằng 999999.
+    """
+    sku = (sku or "").strip().upper()
+
+    if not sku:
+        return "", 999999
+
     row = (
         db.query(InventoryBalance, LocationMaster)
         .outerjoin(
@@ -52,7 +66,11 @@ def lay_vi_tri_uu_tien(db: Session, sku: str):
             InventoryBalance.location_id == LocationMaster.location_id,
         )
         .filter(InventoryBalance.sku == sku)
-        .order_by(LocationMaster.pick_index.asc().nullslast())
+        .filter(InventoryBalance.qty_onhand > 0)
+        .order_by(
+            LocationMaster.pick_index.asc().nullslast(),
+            InventoryBalance.location_id.asc(),
+        )
         .first()
     )
 
@@ -61,8 +79,8 @@ def lay_vi_tri_uu_tien(db: Session, sku: str):
 
     inventory, location = row
 
-    if location:
-        return inventory.location_id, location.pick_index or 999999
+    if location and location.pick_index is not None:
+        return inventory.location_id, int(location.pick_index or 999999)
 
     return inventory.location_id, 999999
 

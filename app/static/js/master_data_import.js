@@ -81,7 +81,15 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   bindClick("importLocationBtn", function () {
-    uploadFile("/api/master-data/import/location-master", "locationFile");
+    const modeEl = document.getElementById("locationMode");
+    const mode = modeEl ? modeEl.value : "upsert";
+
+    if (mode === "replace") {
+      const ok = confirm("Replace sẽ xóa Location Master cũ. Tiếp tục?");
+      if (!ok) return;
+    }
+
+    uploadFile(`/api/master-data/import/location-master?mode=${mode}`, "locationFile");
   });
 
   bindClick("importCategoryBtn", function () {
@@ -94,6 +102,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     uploadFile(`/api/master-data/import/category-aisle?mode=${mode}`, "categoryFile");
+  });
+
+  bindClick("importSkuOverrideBtn", function () {
+    const modeEl = document.getElementById("skuOverrideMode");
+    const mode = modeEl ? modeEl.value : "upsert";
+
+    if (mode === "replace") {
+      const ok = confirm("Replace sẽ xóa SKU Override cũ. Tiếp tục?");
+      if (!ok) return;
+    }
+
+    uploadFile(`/api/master-data/import/sku-location-override?mode=${mode}`, "skuOverrideFile");
   });
 
   bindClick("importPoBtn", function () {

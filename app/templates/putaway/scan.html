@@ -52,6 +52,19 @@
     {% else %}
       <div class="alert alert-warning py-2">⚠ Chưa có rule gợi ý. Nhân viên scan vị trí thực tế và quản lý kiểm tra lại.</div>
     {% endif %}
+
+    {% if task.suggested_locations %}
+      <hr>
+      <div class="fw-bold mb-2">🎯 Vị trí ưu tiên theo index</div>
+      {% for loc in task.suggested_locations %}
+        <button type="button"
+                class="btn btn-outline-dark w-100 text-start mb-2 suggested-location-btn"
+                data-location="{{ loc.location_id }}">
+          <div class="fw-bold">{{ loc.location_id }}{% if loc.is_full %} · ĐÃ ĐẦY{% endif %}</div>
+          <div class="small text-muted">Dãy {{ loc.aisle }} | PutAway Index {{ loc.putaway_index }} | Còn {{ loc.available_capacity }}/{{ loc.max_capacity }}</div>
+        </button>
+      {% endfor %}
+    {% endif %}
   </div>
 </div>
 

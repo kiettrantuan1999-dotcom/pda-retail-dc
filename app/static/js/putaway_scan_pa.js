@@ -2,41 +2,36 @@ document.addEventListener("DOMContentLoaded", function () {
   const palletInput = document.getElementById("pallet_id");
   const findPalletBtn = document.getElementById("findPalletBtn");
   const resultBox = document.getElementById("resultBox");
-
   const scannerBox = document.getElementById("scannerBox");
   const scanPalletBtn = document.getElementById("scanPalletBtn");
   const closeScannerBtn = document.getElementById("closeScannerBtn");
 
   let html5QrCode = null;
-  let isScannerRunning = false;
+  let isStartingScanner = false;
+  let lastDecodedText = "";
+  let lastDecodedAt = 0;
 
-  if (palletInput) {
-    palletInput.focus();
-  }
+  if (palletInput) palletInput.focus();
 
   function showMessage(type, message) {
-    resultBox.classList.remove(
-      "d-none",
-      "alert-success",
-      "alert-danger",
-      "alert-info"
-    );
+    if (!resultBox) return;
+    resultBox.classList.remove("d-none", "alert-success", "alert-danger", "alert-info", "alert-warning");
     resultBox.classList.add(type);
     resultBox.innerText = message;
   }
 
   async function stopScanner() {
-    if (html5QrCode && isScannerRunning) {
-      await html5QrCode.stop();
-      isScannerRunning = false;
+    if (html5QrCode) {
+      try { await html5QrCode.stop(); } catch (e) { console.log("Scanner stop ignored", e); }
+      try { await html5QrCode.clear(); } catch (e) { console.log("Scanner clear ignored", e); }
+      html5QrCode = null;
     }
-
-    scannerBox.classList.add("d-none");
+    if (scannerBox) scannerBox.classList.add("d-none");
+    isStartingScanner = false;
   }
 
   async function findPallet() {
     const pallet = palletInput.value.trim().toUpperCase();
-
     if (!pallet) {
       showMessage("alert-danger", "Vui lòng quét hoặc nhập mã PA.");
       palletInput.focus();
@@ -55,7 +50,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       const queueId = data.data.queue_id;
-
       if (!queueId) {
         showMessage("alert-danger", "PA này chưa có nhiệm vụ cất hàng.");
         return;
@@ -63,14 +57,91 @@ document.addEventListener("DOMContentLoaded", function () {
 
       window.location.href = "/putaway/" + queueId;
     } catch (err) {
-      showMessage("alert-danger", "Lỗi kết nối server.");
+      showMessage("alert-danger", err.message || "Lỗi kết nối server.");
     }
   }
 
-  if (findPalletBtn) {
-    findPalletBtn.addEventListener("click", findPallet);
+  function normalizeCameraError(err) {
+    const raw = err && err.message ? err.message : String(err || "");
+    const name = err && err.name ? err.name : "";
+    if (!window.isSecureContext) return "Camera chỉ chạy trên HTTPS hoặc localhost. Hãy mở bằng link HTTPS Railway.";
+    if (name === "NotAllowedError" || raw.includes("Permission denied")) return "Trình duyệt chưa được cấp quyền Camera.";
+    if (name === "NotFoundError") return "Không tìm thấy camera trên thiết bị.";
+    if (name === "NotReadableError") return "Camera đang bị app khác sử dụng.";
+    return raw || "Không mở được camera.";
   }
 
+  function scannerConfig() {
+    const config = {
+      fps: 15,
+      qrbox: function (w, h) {
+        const size = Math.floor(Math.min(w, h) * 0.72);
+        return { width: Math.max(240, Math.min(size, 420)), height: Math.max(240, Math.min(size, 420)) };
+      },
+      disableFlip: true,
+      rememberLastUsedCamera: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+    };
+
+    if (window.Html5QrcodeSupportedFormats) {
+      config.formatsToSupport = [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39
+      ];
+    }
+    return config;
+  }
+
+  async function startScanner() {
+    if (isStartingScanner) return;
+    if (!window.Html5Qrcode) {
+      showMessage("alert-danger", "Thiếu thư viện Html5Qrcode.");
+      return;
+    }
+    if (!window.isSecureContext) {
+      showMessage("alert-danger", "Camera chỉ chạy trên HTTPS hoặc localhost.");
+      return;
+    }
+
+    isStartingScanner = true;
+    if (scannerBox) scannerBox.classList.remove("d-none");
+    if (resultBox) resultBox.classList.add("d-none");
+
+    if (html5QrCode) {
+      await stopScanner();
+      if (scannerBox) scannerBox.classList.remove("d-none");
+    }
+
+    html5QrCode = new Html5Qrcode("reader");
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        scannerConfig(),
+        async function (decodedText) {
+          const cleanText = String(decodedText || "").trim().toUpperCase();
+          const now = Date.now();
+          if (!cleanText) return;
+          if (cleanText === lastDecodedText && now - lastDecodedAt < 900) return;
+          lastDecodedText = cleanText;
+          lastDecodedAt = now;
+
+          palletInput.value = cleanText;
+          await stopScanner();
+          await findPallet();
+        },
+        function () {}
+      );
+      isStartingScanner = false;
+    } catch (err) {
+      console.error("Camera error", err);
+      await stopScanner();
+      showMessage("alert-danger", normalizeCameraError(err));
+    }
+  }
+
+  if (findPalletBtn) findPalletBtn.addEventListener("click", findPallet);
   if (palletInput) {
     palletInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
@@ -78,38 +149,11 @@ document.addEventListener("DOMContentLoaded", function () {
         findPallet();
       }
     });
-  }
-
-  if (scanPalletBtn) {
-    scanPalletBtn.addEventListener("click", async function () {
-      scannerBox.classList.remove("d-none");
-
-      html5QrCode = new Html5Qrcode("reader");
-
-      try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-          },
-          async function (decodedText) {
-            palletInput.value = decodedText.trim().toUpperCase();
-            await stopScanner();
-            await findPallet();
-          }
-        );
-
-        isScannerRunning = true;
-      } catch (err) {
-        showMessage("alert-danger", "Không mở được camera.");
-      }
+    palletInput.addEventListener("click", function () {
+      if (scannerBox && !scannerBox.classList.contains("d-none")) return;
+      startScanner();
     });
   }
-
-  if (closeScannerBtn) {
-    closeScannerBtn.addEventListener("click", async function () {
-      await stopScanner();
-    });
-  }
+  if (scanPalletBtn) scanPalletBtn.addEventListener("click", startScanner);
+  if (closeScannerBtn) closeScannerBtn.addEventListener("click", stopScanner);
 });

@@ -103,11 +103,16 @@ class LocationMaster(Base):
     __tablename__ = "location_master"
 
     location_id: Mapped[str] = mapped_column(String(100), primary_key=True)
-    zone: Mapped[str] = mapped_column(String(100), default="")
+    zone: Mapped[str] = mapped_column(String(100), default="", index=True)
     location_type: Mapped[str] = mapped_column(String(100), default="PICK_FACE")
-    status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
+    status: Mapped[str] = mapped_column(String(50), default="ACTIVE", index=True)
     max_capacity: Mapped[int] = mapped_column(Integer, default=1)
-    pick_index: Mapped[int] = mapped_column(Integer, default=999999)
+    aisle: Mapped[str] = mapped_column(String(30), default="", index=True)
+    bay: Mapped[str] = mapped_column(String(30), default="")
+    level: Mapped[str] = mapped_column(String(30), default="")
+    pick_index: Mapped[int] = mapped_column(Integer, default=999999, index=True)
+    putaway_index: Mapped[int] = mapped_column(Integer, default=999999, index=True)
+    travel_sequence: Mapped[int] = mapped_column(Integer, default=999999, index=True)
 
 class CategoryAisleMaster(Base):
     __tablename__ = "category_aisle_master"

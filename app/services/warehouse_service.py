@@ -259,6 +259,63 @@ def _detect_putaway_type(qty: int, pcb: int, sku_type: str = "") -> str:
     return "LE"
 
 
+def _location_load_score(db: Session, location_id: str) -> int:
+    """Ước lượng độ đầy theo số dòng tồn tại vị trí. MVP chưa tracking pallet theo location."""
+    try:
+        return (
+            db.query(InventoryBalance)
+            .filter(InventoryBalance.location_id == location_id)
+            .count()
+        )
+    except Exception:
+        return 0
+
+
+def _best_locations_for_aisles(db: Session, aisles: list[str], limit: int = 8):
+    aisles = [str(x or "").strip().upper() for x in aisles if str(x or "").strip()]
+    if not aisles:
+        return []
+
+    rows = (
+        db.query(LocationMaster)
+        .filter(
+            LocationMaster.aisle.in_(aisles),
+            LocationMaster.status == "ACTIVE",
+        )
+        .order_by(
+            LocationMaster.putaway_index.asc(),
+            LocationMaster.pick_index.asc(),
+            LocationMaster.location_id.asc(),
+        )
+        .limit(limit * 3)
+        .all()
+    )
+
+    result = []
+    for loc in rows:
+        load_score = _location_load_score(db, loc.location_id)
+        max_capacity = int(loc.max_capacity or 1)
+        is_full = load_score >= max_capacity if max_capacity > 0 else False
+        result.append({
+            "location_id": loc.location_id,
+            "aisle": loc.aisle or _location_aisle(loc.location_id),
+            "zone": loc.zone or "",
+            "location_type": loc.location_type or "",
+            "status": loc.status or "ACTIVE",
+            "max_capacity": max_capacity,
+            "current_load": load_score,
+            "available_capacity": max(max_capacity - load_score, 0),
+            "is_full": is_full,
+            "pick_index": int(loc.pick_index or 999999),
+            "putaway_index": int(loc.putaway_index or loc.pick_index or 999999),
+            "travel_sequence": int(loc.travel_sequence or loc.pick_index or 999999),
+        })
+
+    # Ưu tiên vị trí chưa đầy, sau đó theo putaway index.
+    result.sort(key=lambda x: (x["is_full"], x["putaway_index"], x["location_id"]))
+    return result[:limit]
+
+
 def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name: str, category: str, putaway_type: str):
     putaway_type = _normalize_putaway_type(putaway_type)
 
@@ -273,6 +330,7 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
     )
 
     if override_rows:
+        aisles = [x.aisle for x in override_rows]
         return {
             "source": "SKU_OVERRIDE",
             "source_label": "Rule SKU đặc biệt",
@@ -287,6 +345,7 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
                 }
                 for x in override_rows
             ],
+            "locations": _best_locations_for_aisles(db, aisles),
         }
 
     q = (
@@ -305,6 +364,7 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
         )
 
     category_rows = q.order_by(CategoryAisleMaster.priority.asc(), CategoryAisleMaster.aisle.asc()).all()
+    aisles = [x.aisle for x in category_rows]
 
     return {
         "source": "CATEGORY_RULE" if category_rows else "NO_RULE",
@@ -320,8 +380,8 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
             }
             for x in category_rows
         ],
+        "locations": _best_locations_for_aisles(db, aisles),
     }
-
 
 def get_putaway_by_pallet(db: Session, pallet_id: str):
     pallet_id = pallet_id.strip().upper()
@@ -382,7 +442,7 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         "suggestion_source": suggestions["source"],
         "suggestion_source_label": suggestions["source_label"],
         "suggested_aisles": suggestions["rows"],
-        "suggested_locations": suggestions["rows"],
+        "suggested_locations": suggestions.get("locations", []),
     }
 
 def confirm_putaway(
@@ -429,6 +489,8 @@ def confirm_putaway(
 
         task_info = get_putaway_by_pallet(db, queue.pallet_id)
         suggested_aisles = [str(x.get("aisle", "")).upper() for x in task_info.get("suggested_aisles", []) if x.get("aisle")]
+        if location and getattr(location, "aisle", ""):
+            scanned_aisle = str(location.aisle or scanned_aisle).upper()
         if suggested_aisles and scanned_aisle and scanned_aisle not in suggested_aisles:
             location_warning = f"Vị trí ngoài dãy gợi ý. Dãy gợi ý: {', '.join(suggested_aisles)}"
 
