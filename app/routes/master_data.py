@@ -1,13 +1,13 @@
 from io import BytesIO
 from datetime import datetime
+from uuid import uuid4
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from app.models.tables import DoDetail
-from app.services import picking_service
+from sqlalchemy.exc import IntegrityError
 
 from app.db.session import get_db
 from app.models.tables import (
@@ -17,37 +17,36 @@ from app.models.tables import (
     PoDetail,
     ProductMaster,
     SkuMaster,
+    DoDetail,
 )
+from app.services import picking_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+MAX_IMPORT_BYTES = 15 * 1024 * 1024
+BATCH_SIZE = 500
+
 
 @router.get("/master-data/import")
 def master_data_import_page(request: Request):
-    return templates.TemplateResponse(
-        "master_data_import.html",
-        {"request": request},
-    )
+    return templates.TemplateResponse("master_data_import.html", {"request": request})
 
 
 def excel_response(df: pd.DataFrame, filename: str):
     output = BytesIO()
-
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Template")
-
     output.seek(0)
-
-    headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"'
-    }
-
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers=headers,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def new_import_key(prefix: str) -> str:
+    return f"{prefix}_{uuid4().hex}"
 
 
 def safe_text(value, default=""):
@@ -85,35 +84,44 @@ def normalize_putaway_type(value):
     return text
 
 
-def parse_location_parts(location_id: str):
-    text = safe_text(location_id).upper()
-    parts = text.replace("_", "-").replace(".", "-").split("-")
-    aisle = parts[0] if len(parts) >= 1 else ""
-    bay = parts[1] if len(parts) >= 2 else ""
-    level = parts[2] if len(parts) >= 3 else ""
-    return aisle, bay, level
-
-
-def auto_location_index(location_id: str, fallback: int = 999999) -> int:
-    aisle, bay, level = parse_location_parts(location_id)
-    import re
-
-    m = re.search(r"(\d+)", aisle or "")
-    aisle_no = int(m.group(1)) if m else fallback // 10000
-    bay_no = safe_int(bay, 0)
-    level_no = safe_int(level, 0)
-
-    if aisle_no <= 0:
-        return fallback
-
-    return aisle_no * 10000 + bay_no * 100 + level_no
+def validate_upload(file: UploadFile):
+    if file.size and file.size > MAX_IMPORT_BYTES:
+        raise ValueError("File import quá lớn. Vui lòng tách file nhỏ hơn 15MB để tránh sụp web/deploy.")
+    name = (file.filename or "").lower()
+    if not (name.endswith(".xlsx") or name.endswith(".xls")):
+        raise ValueError("Chỉ hỗ trợ file Excel .xlsx/.xls")
 
 
 def read_excel_file(file: UploadFile):
+    validate_upload(file)
     try:
-        return pd.read_excel(file.file, dtype=str)
+        return pd.read_excel(file.file, dtype=str).fillna("")
     except Exception as e:
         raise ValueError(f"Không đọc được file Excel. Vui lòng kiểm tra định dạng .xlsx/.xls. Chi tiết: {e}")
+
+
+def require_cols(df: pd.DataFrame, cols: list[str]):
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"Thiếu cột: {', '.join(missing)}")
+
+
+def commit_batch(db: Session, counter: int):
+    if counter > 0 and counter % BATCH_SIZE == 0:
+        db.commit()
+
+
+def import_result(inserted=0, updated=0, skipped=0, duplicate=0, conflict=0, **extra):
+    data = {
+        "inserted_rows": inserted,
+        "updated_rows": updated,
+        "skipped_rows": skipped,
+        "duplicate_rows": duplicate,
+        "conflict_rows": conflict,
+        "imported_rows": inserted + updated,
+    }
+    data.update(extra)
+    return {"ok": True, "data": data}
 
 
 # =========================
@@ -122,169 +130,125 @@ def read_excel_file(file: UploadFile):
 
 @router.get("/api/master-data/template/product-master")
 def download_product_master_template():
-    df = pd.DataFrame(
-        [
-            {
-                "sku": "10303906",
-                "barcode": "8992775347256",
-                "product_name": "Sample Product",
-                "uom": "EA",
-                "category": "Bánh kẹo",
-            }
-        ]
-    )
-
-    return excel_response(df, "product_master_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "sku": "10303906",
+        "barcode": "8992775347256",
+        "product_name": "Sample Product",
+        "uom": "EA",
+        "category": "Bánh kẹo",
+    }]), "product_master_template.xlsx")
 
 
 @router.get("/api/master-data/template/sku-master")
 def download_sku_master_template():
-    df = pd.DataFrame(
-        [
-            {
-                "sku": "10303906",
-                "pcb": 12,
-                "mhu": 1,
-                "sku_type": "CASE",
-            },
-            {
-                "sku": "10141530",
-                "pcb": 1,
-                "mhu": 1,
-                "sku_type": "ODD",
-            },
-        ]
-    )
-
-    return excel_response(df, "sku_master_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "sku": "10303906",
+        "pcb": 12,
+        "mhu": 1,
+        "sku_type": "CASE",
+    }, {
+        "import_key": "Để trống - hệ thống tự sinh",
+        "sku": "10141530",
+        "pcb": 1,
+        "mhu": 1,
+        "sku_type": "ODD",
+    }]), "sku_master_template.xlsx")
 
 
 @router.get("/api/master-data/template/category-aisle")
 def download_category_aisle_template():
-    df = pd.DataFrame(
-        [
-            {
-                "category": "Bánh kẹo",
-                "putaway_type": "LE",
-                "zone": "PICK_FACE_LE",
-                "aisle": "A01",
-                "priority": 1,
-                "active": "TRUE",
-                "note": "Dãy gợi ý theo ngành hàng",
-            },
-            {
-                "category": "Hóa mỹ phẩm",
-                "putaway_type": "CHAN",
-                "zone": "PALLET_CHAN",
-                "aisle": "P01",
-                "priority": 1,
-                "active": "TRUE",
-                "note": "Dãy chẵn theo ngành hàng",
-            },
-        ]
-    )
-
-    return excel_response(df, "category_aisle_master_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "category": "Bánh kẹo",
+        "putaway_type": "LE",
+        "zone": "PICK_FACE_LE",
+        "aisle": "A01",
+        "priority": 1,
+        "active": "TRUE",
+        "note": "Dãy gợi ý theo ngành hàng",
+    }, {
+        "import_key": "Để trống - hệ thống tự sinh",
+        "category": "Hóa mỹ phẩm",
+        "putaway_type": "CHAN",
+        "zone": "PALLET_CHAN",
+        "aisle": "P01",
+        "priority": 1,
+        "active": "TRUE",
+        "note": "Dãy chẵn theo ngành hàng",
+    }]), "category_aisle_master_template.xlsx")
 
 
 @router.get("/api/master-data/template/location-master")
 def download_location_master_template():
-    df = pd.DataFrame(
-        [
-            {
-                "location_id": "A01-01-01",
-                "zone": "PICK_FACE_LE",
-                "location_type": "PICK_FACE",
-                "status": "ACTIVE",
-                "max_capacity": 1,
-                "aisle": "A01",
-                "bay": "01",
-                "level": "01",
-                "pick_index": 1,
-                "putaway_index": 1,
-                "travel_sequence": 1,
-            },
-            {
-                "location_id": "P01-01-01",
-                "zone": "PALLET_CHAN",
-                "location_type": "PALLET",
-                "status": "ACTIVE",
-                "max_capacity": 1,
-                "aisle": "P01",
-                "bay": "01",
-                "level": "01",
-                "pick_index": 100,
-                "putaway_index": 100,
-                "travel_sequence": 100,
-            },
-        ]
-    )
-
-    return excel_response(df, "location_master_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "location_id": "A01-01-01",
+        "zone": "PICK_FACE_LE",
+        "location_type": "PICK_FACE",
+        "status": "ACTIVE",
+        "max_capacity": 1,
+        "pick_index": 1,
+    }, {
+        "import_key": "Để trống - hệ thống tự sinh",
+        "location_id": "P01-01-01",
+        "zone": "PALLET_CHAN",
+        "location_type": "PALLET",
+        "status": "ACTIVE",
+        "max_capacity": 1,
+        "pick_index": 100,
+    }]), "location_master_template.xlsx")
 
 
 @router.get("/api/master-data/template/sku-location-override")
 def download_sku_location_override_template():
-    df = pd.DataFrame(
-        [
-            {
-                "sku": "10303906",
-                "barcode": "8992775347256",
-                "product_name": "Sample Product",
-                "putaway_type": "LE",
-                "aisle": "A02",
-                "priority": 1,
-                "active": "TRUE",
-                "reason": "SKU đặc biệt, bỏ qua rule ngành hàng",
-            }
-        ]
-    )
-
-    return excel_response(df, "sku_location_override_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "sku": "10303906",
+        "barcode": "8992775347256",
+        "product_name": "Sample Product",
+        "putaway_type": "LE",
+        "aisle": "A02",
+        "priority": 1,
+        "active": "TRUE",
+        "reason": "SKU đặc biệt, bỏ qua rule ngành hàng",
+    }]), "sku_location_override_template.xlsx")
 
 
 @router.get("/api/master-data/template/po-detail")
 def download_po_detail_template():
-    df = pd.DataFrame(
-        [
-            {
-                "Mã đơn hàng": "PO_TEST_001",
-                "Mã hàng": "10303906",
-                "Tên hàng": "Sample Product",
-                "Mã Barcode hàng hóa": "8992775347256",
-                "ĐVT": "EA",
-                "Số lượng đặt hàng": 100,
-                "Trạng thái": "WAIT_GR",
-                "Ghi chú": "",
-            }
-        ]
-    )
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "Mã đơn hàng": "PO_TEST_001",
+        "Mã hàng": "10303906",
+        "Tên hàng": "Sample Product",
+        "Mã Barcode hàng hóa": "8992775347256",
+        "ĐVT": "EA",
+        "Số lượng đặt hàng": 100,
+        "Trạng thái": "WAIT_GR",
+        "Ghi chú": "",
+    }]), "po_detail_trung_tam_dat_hang_template.xlsx")
 
-    return excel_response(df, "po_detail_trung_tam_dat_hang_template.xlsx")
 
 @router.get("/api/master-data/template/do-detail")
 def download_do_detail_template():
-    df = pd.DataFrame(
-        [
-            {
-                "wave": 1,
-                "Khung giờ": "08:15:00",
-                "Loại giao": "GHN",
-                "DC Sites": "1325",
-                "Số STO": "4834603446",
-                "DO": "7078865709",
-                "Ngày tạo DO": "",
-                "Mã cửa hàng": "6200",
-                "Tên cửa hàng": "WM+ QTI 163 Trần Hưng Đạo",
-                "Sku": "10198698",
-                "Tên hàng": "CHIN-SU xốt muối ớt xanh 200g",
-                "Số lượng": 2,
-                "ĐVT": "CHA",
-            }
-        ]
-    )
-
-    return excel_response(df, "do_detail_template.xlsx")
+    return excel_response(pd.DataFrame([{
+        "import_key": "Để trống - hệ thống tự sinh",
+        "wave": 1,
+        "Khung giờ": "08:15:00",
+        "Loại giao": "GHN",
+        "DC Sites": "1325",
+        "Số STO": "4834603446",
+        "DO": "7078865709",
+        "Ngày tạo DO": "",
+        "Mã cửa hàng": "6200",
+        "Tên cửa hàng": "WM+ QTI 163 Trần Hưng Đạo",
+        "Sku": "10198698",
+        "Tên hàng": "CHIN-SU xốt muối ớt xanh 200g",
+        "Số lượng": 2,
+        "ĐVT": "CHA",
+    }]), "do_detail_template.xlsx")
 
 
 # =========================
@@ -292,82 +256,57 @@ def download_do_detail_template():
 # =========================
 
 @router.post("/api/master-data/import/product-master")
-async def import_product_master(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_product_master(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        require_cols(df, ["sku", "barcode"])
+        inserted = updated = skipped = duplicate = conflict = 0
+        seen_sku = set()
+        seen_barcode = set()
 
-    required_cols = ["sku", "barcode"]
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        return {
-            "ok": False,
-            "error": f"Thiếu cột: {', '.join(missing)}",
-        }
-
-    inserted = 0
-    updated = 0
-    skipped = 0
-
-    try:
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             sku = safe_text(row.get("sku")).upper()
             barcode = safe_text(row.get("barcode"))
+            if not sku or not barcode:
+                skipped += 1
+                continue
+            if sku in seen_sku or barcode in seen_barcode:
+                duplicate += 1
+                continue
+            seen_sku.add(sku)
+            seen_barcode.add(barcode)
+
             product_name = safe_text(row.get("product_name"))
             uom = safe_text(row.get("uom"), "EA") or "EA"
             category = safe_text(row.get("category"))
 
-            if not sku or not barcode:
-                skipped += 1
+            existing = db.query(ProductMaster).filter(ProductMaster.sku == sku).first()
+            barcode_owner = db.query(ProductMaster).filter(ProductMaster.barcode == barcode).first()
+            if barcode_owner and barcode_owner.sku != sku:
+                conflict += 1
                 continue
-
-            existing = (
-                db.query(ProductMaster)
-                .filter(ProductMaster.sku == sku)
-                .first()
-            )
 
             if existing:
                 existing.barcode = barcode
                 existing.product_name = product_name
                 existing.uom = uom
                 existing.category = category
+                if hasattr(existing, "import_key") and not existing.import_key:
+                    existing.import_key = new_import_key("PROD")
                 updated += 1
             else:
-                db.add(
-                    ProductMaster(
-                        sku=sku,
-                        barcode=barcode,
-                        product_name=product_name,
-                        uom=uom,
-                        category=category,
-                    )
-                )
+                obj = ProductMaster(sku=sku, barcode=barcode, product_name=product_name, uom=uom, category=category)
+                if hasattr(obj, "import_key"):
+                    obj.import_key = new_import_key("PROD")
+                db.add(obj)
                 inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-
-        return {
-            "ok": True,
-            "data": {
-                "inserted_rows": inserted,
-                "updated_rows": updated,
-                "skipped_rows": skipped,
-                "imported_rows": inserted + updated,
-            },
-        }
-
+        return import_result(inserted, updated, skipped, duplicate, conflict)
     except Exception as e:
         db.rollback()
-        return {
-            "ok": False,
-            "error": str(e),
-        }
+        return {"ok": False, "error": str(e)}
 
 
 # =========================
@@ -375,90 +314,51 @@ async def import_product_master(
 # =========================
 
 @router.post("/api/master-data/import/sku-master")
-async def import_sku_master(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_sku_master(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        require_cols(df, ["sku"])
+        inserted = updated = skipped = duplicate = 0
+        seen = set()
 
-    required_cols = ["sku"]
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        return {
-            "ok": False,
-            "error": f"Thiếu cột: {', '.join(missing)}",
-        }
-
-    inserted = 0
-    updated = 0
-    skipped = 0
-
-    try:
         for _, row in df.iterrows():
             sku = safe_text(row.get("sku")).upper()
-            pcb = safe_int(row.get("pcb"), 1)
-            mhu = safe_int(row.get("mhu"), 1)
-            sku_type = safe_text(row.get("sku_type"), "ODD").upper() or "ODD"
-
             if not sku:
                 skipped += 1
                 continue
+            if sku in seen:
+                duplicate += 1
+                continue
+            seen.add(sku)
 
-            if pcb <= 0:
-                pcb = 1
-
-            if mhu <= 0:
-                mhu = 1
-
+            pcb = max(safe_int(row.get("pcb"), 1), 1)
+            mhu = max(safe_int(row.get("mhu"), 1), 1)
+            sku_type = safe_text(row.get("sku_type"), "ODD").upper() or "ODD"
             if sku_type not in ["CASE", "ODD"]:
                 sku_type = "ODD"
 
-            existing = (
-                db.query(SkuMaster)
-                .filter(SkuMaster.sku == sku)
-                .first()
-            )
-
+            existing = db.query(SkuMaster).filter(SkuMaster.sku == sku).first()
             if existing:
                 existing.pcb = pcb
                 existing.mhu = mhu
                 existing.sku_type = sku_type
                 existing.last_update = datetime.utcnow()
+                if hasattr(existing, "import_key") and not existing.import_key:
+                    existing.import_key = new_import_key("SKU")
                 updated += 1
             else:
-                db.add(
-                    SkuMaster(
-                        sku=sku,
-                        pcb=pcb,
-                        mhu=mhu,
-                        sku_type=sku_type,
-                        last_update=datetime.utcnow(),
-                    )
-                )
+                obj = SkuMaster(sku=sku, pcb=pcb, mhu=mhu, sku_type=sku_type, last_update=datetime.utcnow())
+                if hasattr(obj, "import_key"):
+                    obj.import_key = new_import_key("SKU")
+                db.add(obj)
                 inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-
-        return {
-            "ok": True,
-            "data": {
-                "inserted_rows": inserted,
-                "updated_rows": updated,
-                "skipped_rows": skipped,
-                "imported_rows": inserted + updated,
-            },
-        }
-
+        return import_result(inserted, updated, skipped, duplicate)
     except Exception as e:
         db.rollback()
-        return {
-            "ok": False,
-            "error": str(e),
-        }
+        return {"ok": False, "error": str(e)}
 
 
 # =========================
@@ -466,31 +366,16 @@ async def import_sku_master(
 # =========================
 
 @router.post("/api/master-data/import/category-aisle")
-async def import_category_aisle(
-    mode: str = "upsert",
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_category_aisle(mode: str = "upsert", file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        require_cols(df, ["category", "zone", "aisle", "priority"])
+        inserted = updated = skipped = duplicate = 0
+        seen = set()
 
-    required_cols = ["category", "zone", "aisle", "priority"]
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        return {
-            "ok": False,
-            "error": f"Thiếu cột: {', '.join(missing)}",
-        }
-
-    count = 0
-
-    try:
         if mode == "replace":
             db.query(CategoryAisleMaster).delete()
-            db.flush()
+            db.commit()
 
         for _, row in df.iterrows():
             category = safe_text(row.get("category"))
@@ -502,54 +387,32 @@ async def import_category_aisle(
             note = safe_text(row.get("note"))
 
             if not category or not aisle:
+                skipped += 1
                 continue
+            key = (category.upper(), putaway_type, aisle)
+            if key in seen:
+                duplicate += 1
+                continue
+            seen.add(key)
 
-            existing = (
-                db.query(CategoryAisleMaster)
-                .filter(
-                    CategoryAisleMaster.category == category,
-                    CategoryAisleMaster.aisle == aisle,
-                )
-                .first()
-            )
-
+            existing = db.query(CategoryAisleMaster).filter(CategoryAisleMaster.category == category, CategoryAisleMaster.aisle == aisle).first()
             if existing:
                 existing.zone = zone
                 existing.putaway_type = putaway_type
                 existing.priority = priority
                 existing.active = active
                 existing.note = note
+                updated += 1
             else:
-                db.add(
-                    CategoryAisleMaster(
-                        category=category,
-                        zone=zone,
-                        putaway_type=putaway_type,
-                        aisle=aisle,
-                        priority=priority,
-                        active=active,
-                        note=note,
-                    )
-                )
-
-            count += 1
+                db.add(CategoryAisleMaster(category=category, zone=zone, putaway_type=putaway_type, aisle=aisle, priority=priority, active=active, note=note))
+                inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-
-        return {
-            "ok": True,
-            "data": {
-                "imported_rows": count,
-                "mode": mode,
-            },
-        }
-
+        return import_result(inserted, updated, skipped, duplicate, mode=mode)
     except Exception as e:
         db.rollback()
-        return {
-            "ok": False,
-            "error": str(e),
-        }
+        return {"ok": False, "error": str(e)}
 
 
 # =========================
@@ -557,48 +420,32 @@ async def import_category_aisle(
 # =========================
 
 @router.post("/api/master-data/import/location-master")
-async def import_location_master(
-    mode: str = "upsert",
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_location_master(mode: str = "upsert", file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        require_cols(df, ["location_id"])
+        inserted = updated = skipped = duplicate = 0
+        seen = set()
 
-    required_cols = ["location_id"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        return {"ok": False, "error": f"Thiếu cột: {', '.join(missing)}"}
-
-    inserted = updated = skipped = 0
-
-    try:
         if mode == "replace":
             db.query(LocationMaster).delete()
-            db.flush()
+            db.commit()
 
         for _, row in df.iterrows():
             location_id = safe_text(row.get("location_id")).upper()
             if not location_id:
                 skipped += 1
                 continue
+            if location_id in seen:
+                duplicate += 1
+                continue
+            seen.add(location_id)
 
             zone = safe_text(row.get("zone"), "")
             location_type = safe_text(row.get("location_type"), "PICK_FACE") or "PICK_FACE"
             status = safe_text(row.get("status"), "ACTIVE").upper() or "ACTIVE"
-            max_capacity = safe_int(row.get("max_capacity"), 1)
-
-            parsed_aisle, parsed_bay, parsed_level = parse_location_parts(location_id)
-            aisle = safe_text(row.get("aisle"), parsed_aisle).upper() or parsed_aisle
-            bay = safe_text(row.get("bay"), parsed_bay) or parsed_bay
-            level = safe_text(row.get("level"), parsed_level) or parsed_level
-
-            auto_index = auto_location_index(location_id)
-            pick_index = safe_int(row.get("pick_index"), auto_index)
-            putaway_index = safe_int(row.get("putaway_index"), pick_index)
-            travel_sequence = safe_int(row.get("travel_sequence"), pick_index)
+            max_capacity = max(safe_int(row.get("max_capacity"), 1), 1)
+            pick_index = safe_int(row.get("pick_index"), 999999)
 
             existing = db.query(LocationMaster).filter(LocationMaster.location_id == location_id).first()
             if existing:
@@ -606,31 +453,20 @@ async def import_location_master(
                 existing.location_type = location_type
                 existing.status = status
                 existing.max_capacity = max_capacity
-                existing.aisle = aisle
-                existing.bay = bay
-                existing.level = level
                 existing.pick_index = pick_index
-                existing.putaway_index = putaway_index
-                existing.travel_sequence = travel_sequence
+                if hasattr(existing, "import_key") and not existing.import_key:
+                    existing.import_key = new_import_key("LOC")
                 updated += 1
             else:
-                db.add(LocationMaster(
-                    location_id=location_id,
-                    zone=zone,
-                    location_type=location_type,
-                    status=status,
-                    max_capacity=max_capacity,
-                    aisle=aisle,
-                    bay=bay,
-                    level=level,
-                    pick_index=pick_index,
-                    putaway_index=putaway_index,
-                    travel_sequence=travel_sequence,
-                ))
+                obj = LocationMaster(location_id=location_id, zone=zone, location_type=location_type, status=status, max_capacity=max_capacity, pick_index=pick_index)
+                if hasattr(obj, "import_key"):
+                    obj.import_key = new_import_key("LOC")
+                db.add(obj)
                 inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-        return {"ok": True, "data": {"inserted_rows": inserted, "updated_rows": updated, "skipped_rows": skipped, "imported_rows": inserted + updated, "mode": mode}}
+        return import_result(inserted, updated, skipped, duplicate, mode=mode)
     except Exception as e:
         db.rollback()
         return {"ok": False, "error": str(e)}
@@ -641,27 +477,16 @@ async def import_location_master(
 # =========================
 
 @router.post("/api/master-data/import/sku-location-override")
-async def import_sku_location_override(
-    mode: str = "upsert",
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_sku_location_override(mode: str = "upsert", file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        require_cols(df, ["sku", "aisle"])
+        inserted = updated = skipped = duplicate = 0
+        seen = set()
 
-    required_cols = ["sku", "aisle"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        return {"ok": False, "error": f"Thiếu cột: {', '.join(missing)}"}
-
-    inserted = updated = skipped = 0
-
-    try:
         if mode == "replace":
             db.query(SkuLocationOverride).delete()
-            db.flush()
+            db.commit()
 
         for _, row in df.iterrows():
             sku = safe_text(row.get("sku")).upper()
@@ -669,6 +494,11 @@ async def import_sku_location_override(
             if not sku or not aisle:
                 skipped += 1
                 continue
+            key = (sku, aisle)
+            if key in seen:
+                duplicate += 1
+                continue
+            seen.add(key)
 
             barcode = safe_text(row.get("barcode"))
             product_name = safe_text(row.get("product_name"))
@@ -677,11 +507,7 @@ async def import_sku_location_override(
             active = safe_bool(row.get("active"), True)
             reason = safe_text(row.get("reason"))
 
-            existing = db.query(SkuLocationOverride).filter(
-                SkuLocationOverride.sku == sku,
-                SkuLocationOverride.aisle == aisle,
-            ).first()
-
+            existing = db.query(SkuLocationOverride).filter(SkuLocationOverride.sku == sku, SkuLocationOverride.aisle == aisle).first()
             if existing:
                 existing.barcode = barcode
                 existing.product_name = product_name
@@ -692,21 +518,12 @@ async def import_sku_location_override(
                 existing.last_update = datetime.utcnow()
                 updated += 1
             else:
-                db.add(SkuLocationOverride(
-                    sku=sku,
-                    barcode=barcode,
-                    product_name=product_name,
-                    putaway_type=putaway_type,
-                    aisle=aisle,
-                    priority=priority,
-                    active=active,
-                    reason=reason,
-                    last_update=datetime.utcnow(),
-                ))
+                db.add(SkuLocationOverride(sku=sku, barcode=barcode, product_name=product_name, putaway_type=putaway_type, aisle=aisle, priority=priority, active=active, reason=reason, last_update=datetime.utcnow()))
                 inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-        return {"ok": True, "data": {"inserted_rows": inserted, "updated_rows": updated, "skipped_rows": skipped, "imported_rows": inserted + updated, "mode": mode}}
+        return import_result(inserted, updated, skipped, duplicate, mode=mode)
     except Exception as e:
         db.rollback()
         return {"ok": False, "error": str(e)}
@@ -717,213 +534,140 @@ async def import_sku_location_override(
 # =========================
 
 @router.post("/api/master-data/import/po-detail")
-async def import_po_detail(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
+async def import_po_detail(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         df = read_excel_file(file)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-    col_map = {
-        "Mã đơn hàng": "po_no",
-        "Mã hàng": "sku",
-        "Tên hàng": "product_name",
-        "Mã Barcode hàng hóa": "barcode",
-        "Số lượng đặt hàng": "qty_order",
-    }
-
-    missing = [c for c in col_map.keys() if c not in df.columns]
-
-    if missing:
-        return {
-            "ok": False,
-            "error": f"Thiếu cột: {', '.join(missing)}",
+        col_map = {
+            "Mã đơn hàng": "po_no",
+            "Mã hàng": "sku",
+            "Tên hàng": "product_name",
+            "Mã Barcode hàng hóa": "barcode",
+            "Số lượng đặt hàng": "qty_order",
         }
+        require_cols(df, list(col_map.keys()))
 
-    count = 0
-
-    try:
+        # Aggregate duplicate PO + SKU lines instead of using file columns as a unique key.
+        grouped = {}
+        skipped = 0
         for _, row in df.iterrows():
             po_no = safe_text(row.get("Mã đơn hàng"))
             sku = safe_text(row.get("Mã hàng")).upper()
             barcode = safe_text(row.get("Mã Barcode hàng hóa"))
-            product_name = safe_text(row.get("Tên hàng"))
             qty_order = safe_int(row.get("Số lượng đặt hàng"), 0)
-
             if not po_no or not sku or not barcode or qty_order <= 0:
+                skipped += 1
                 continue
+            key = (po_no, sku)
+            if key not in grouped:
+                grouped[key] = {
+                    "po_no": po_no,
+                    "sku": sku,
+                    "barcode": barcode,
+                    "product_name": safe_text(row.get("Tên hàng")),
+                    "qty_order": 0,
+                }
+            grouped[key]["qty_order"] += qty_order
 
-            existing = (
-                db.query(PoDetail)
-                .filter(
-                    PoDetail.po_no == po_no,
-                    PoDetail.sku == sku,
-                )
-                .first()
-            )
-
+        inserted = updated = 0
+        duplicate = max(len(df) - skipped - len(grouped), 0)
+        for row in grouped.values():
+            existing = db.query(PoDetail).filter(PoDetail.po_no == row["po_no"], PoDetail.sku == row["sku"]).first()
             if existing:
-                existing.barcode = barcode
-                existing.product_name = product_name
-                existing.qty_order = qty_order
-                existing.qty_remaining = max(qty_order - existing.qty_received, 0)
-
-                if existing.qty_remaining == 0:
-                    existing.status = "DONE"
-                else:
-                    existing.status = "WAIT_GR"
-
+                existing.barcode = row["barcode"]
+                existing.product_name = row["product_name"]
+                existing.qty_order = row["qty_order"]
+                existing.qty_remaining = max(row["qty_order"] - existing.qty_received, 0)
+                existing.status = "DONE" if existing.qty_remaining == 0 else "WAIT_GR"
+                existing.last_update = datetime.utcnow()
+                updated += 1
             else:
-                db.add(
-                    PoDetail(
-                        po_no=po_no,
-                        sku=sku,
-                        barcode=barcode,
-                        product_name=product_name,
-                        qty_order=qty_order,
-                        qty_received=0,
-                        qty_remaining=qty_order,
-                        status="WAIT_GR",
-                    )
-                )
-
-            count += 1
+                db.add(PoDetail(po_no=row["po_no"], sku=row["sku"], barcode=row["barcode"], product_name=row["product_name"], qty_order=row["qty_order"], qty_received=0, qty_remaining=row["qty_order"], status="WAIT_GR"))
+                inserted += 1
+            commit_batch(db, inserted + updated)
 
         db.commit()
-
-        return {
-            "ok": True,
-            "data": {
-                "imported_rows": count,
-            },
-        }
-
+        return import_result(inserted, updated, skipped, duplicate)
     except Exception as e:
         db.rollback()
-        return {
-            "ok": False,
-            "error": str(e),
-        }
-    
-@router.post("/api/master-data/import/do-detail")
-async def import_do_detail(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    try:
-        df = read_excel_file(file)
-    except Exception as e:
         return {"ok": False, "error": str(e)}
 
-    required_cols = [
-        "wave",
-        "Khung giờ",
-        "Loại giao",
-        "DC Sites",
-        "Số STO",
-        "DO",
-        "Mã cửa hàng",
-        "Tên cửa hàng",
-        "Sku",
-        "Tên hàng",
-        "Số lượng",
-        "ĐVT",
-    ]
 
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        return {
-            "ok": False,
-            "error": f"Thiếu cột: {', '.join(missing)}",
-        }
-
-    imported = 0
-    skipped = 0
-    do_set = set()
-
+@router.post("/api/master-data/import/do-detail")
+async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
+        df = read_excel_file(file)
+        required_cols = ["wave", "Khung giờ", "Loại giao", "DC Sites", "Số STO", "DO", "Mã cửa hàng", "Tên cửa hàng", "Sku", "Tên hàng", "Số lượng", "ĐVT"]
+        require_cols(df, required_cols)
+
+        # Aggregate duplicate DO + store + SKU lines. This prevents duplicate natural-key collisions and keeps picking qty correct.
+        grouped = {}
+        skipped = 0
+        do_set = set()
         for _, row in df.iterrows():
             do_no = safe_text(row.get("DO"))
             sku = safe_text(row.get("Sku")).upper()
             store_id = safe_text(row.get("Mã cửa hàng"))
             qty_do = safe_int(row.get("Số lượng"), 0)
-
             if not do_no or not sku or not store_id or qty_do <= 0:
                 skipped += 1
                 continue
+            key = (do_no, store_id, sku)
+            if key not in grouped:
+                grouped[key] = {
+                    "wave": safe_text(row.get("wave")),
+                    "khung_gio": safe_text(row.get("Khung giờ")),
+                    "loai_giao": safe_text(row.get("Loại giao")),
+                    "dc_site": safe_text(row.get("DC Sites")),
+                    "sto_no": safe_text(row.get("Số STO")),
+                    "do_created_date": safe_text(row.get("Ngày tạo DO")),
+                    "do_no": do_no,
+                    "store_id": store_id,
+                    "store_name": safe_text(row.get("Tên cửa hàng")),
+                    "sku": sku,
+                    "product_name": safe_text(row.get("Tên hàng")),
+                    "uom": safe_text(row.get("ĐVT")),
+                    "qty_do": 0,
+                }
+            grouped[key]["qty_do"] += qty_do
+            do_set.add(do_no)
 
-            product = (
-                db.query(ProductMaster)
-                .filter(ProductMaster.sku == sku)
-                .first()
-            )
-
-            existing = (
-                db.query(DoDetail)
-                .filter(
-                    DoDetail.do_no == do_no,
-                    DoDetail.store_id == store_id,
-                    DoDetail.sku == sku,
-                )
-                .first()
-            )
-
+        inserted = updated = 0
+        duplicate = max(len(df) - skipped - len(grouped), 0)
+        for row in grouped.values():
+            product = db.query(ProductMaster).filter(ProductMaster.sku == row["sku"]).first()
             data = {
-                "wave": safe_text(row.get("wave")),
-                "khung_gio": safe_text(row.get("Khung giờ")),
-                "loai_giao": safe_text(row.get("Loại giao")),
-                "dc_site": safe_text(row.get("DC Sites")),
-                "sto_no": safe_text(row.get("Số STO")),
-                "do_created_date": safe_text(row.get("Ngày tạo DO")),
-                "store_name": safe_text(row.get("Tên cửa hàng")),
+                "wave": row["wave"],
+                "khung_gio": row["khung_gio"],
+                "loai_giao": row["loai_giao"],
+                "dc_site": row["dc_site"],
+                "sto_no": row["sto_no"],
+                "do_created_date": row["do_created_date"],
+                "store_name": row["store_name"],
                 "barcode": product.barcode if product else "",
-                "product_name": safe_text(row.get("Tên hàng")),
-                "uom": safe_text(row.get("ĐVT")),
-                "qty_do": qty_do,
-                "qty_remain": qty_do,
+                "product_name": row["product_name"],
+                "uom": row["uom"],
+                "qty_do": row["qty_do"],
+                "qty_remain": row["qty_do"],
                 "status": "WAIT_PICK",
             }
-
+            existing = db.query(DoDetail).filter(DoDetail.do_no == row["do_no"], DoDetail.store_id == row["store_id"], DoDetail.sku == row["sku"]).first()
             if existing:
                 for k, v in data.items():
                     setattr(existing, k, v)
+                updated += 1
             else:
-                db.add(
-                    DoDetail(
-                        do_no=do_no,
-                        store_id=store_id,
-                        sku=sku,
-                        **data,
-                    )
-                )
+                db.add(DoDetail(do_no=row["do_no"], store_id=row["store_id"], sku=row["sku"], **data))
+                inserted += 1
+            commit_batch(db, inserted + updated)
 
-            imported += 1
-            do_set.add(do_no)
-
-        db.flush()
+        db.commit()
 
         created_picking = 0
-
         for do_no in do_set:
             result = picking_service.tao_phieu_lay_hang_theo_do(db, do_no)
             created_picking += result["so_phieu_lay_hang"]
 
-        return {
-            "ok": True,
-            "data": {
-                "imported_rows": imported,
-                "skipped_rows": skipped,
-                "so_do": len(do_set),
-                "so_phieu_lay_hang": created_picking,
-            },
-        }
-
+        return import_result(inserted, updated, skipped, duplicate, so_do=len(do_set), so_phieu_lay_hang=created_picking)
     except Exception as e:
         db.rollback()
-        return {
-            "ok": False,
-            "error": str(e),
-        }
+        return {"ok": False, "error": str(e)}

@@ -83,6 +83,7 @@ class SystemSetting(Base):
 class ProductMaster(Base):
     __tablename__ = "product_master"
 
+    import_key: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
     sku: Mapped[str] = mapped_column(String(100), primary_key=True)
     barcode: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     product_name: Mapped[str] = mapped_column(String(255), default="")
@@ -92,6 +93,7 @@ class ProductMaster(Base):
 class SkuMaster(Base):
     __tablename__ = "sku_master"
 
+    import_key: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
     sku: Mapped[str] = mapped_column(String(100), primary_key=True)
     pcb: Mapped[int] = mapped_column(Integer, default=1)
     mhu: Mapped[int] = mapped_column(Integer, default=1)
@@ -102,17 +104,13 @@ class SkuMaster(Base):
 class LocationMaster(Base):
     __tablename__ = "location_master"
 
+    import_key: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True, index=True)
     location_id: Mapped[str] = mapped_column(String(100), primary_key=True)
-    zone: Mapped[str] = mapped_column(String(100), default="", index=True)
+    zone: Mapped[str] = mapped_column(String(100), default="")
     location_type: Mapped[str] = mapped_column(String(100), default="PICK_FACE")
-    status: Mapped[str] = mapped_column(String(50), default="ACTIVE", index=True)
+    status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
     max_capacity: Mapped[int] = mapped_column(Integer, default=1)
-    aisle: Mapped[str] = mapped_column(String(30), default="", index=True)
-    bay: Mapped[str] = mapped_column(String(30), default="")
-    level: Mapped[str] = mapped_column(String(30), default="")
-    pick_index: Mapped[int] = mapped_column(Integer, default=999999, index=True)
-    putaway_index: Mapped[int] = mapped_column(Integer, default=999999, index=True)
-    travel_sequence: Mapped[int] = mapped_column(Integer, default=999999, index=True)
+    pick_index: Mapped[int] = mapped_column(Integer, default=999999)
 
 class CategoryAisleMaster(Base):
     __tablename__ = "category_aisle_master"
