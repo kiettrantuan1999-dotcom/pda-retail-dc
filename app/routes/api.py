@@ -73,27 +73,75 @@ def gr_history(
 ):
     try:
         rows = svc.get_gr_history_by_po(db, po_no.strip())
-        return ok({
-            "rows": [
-                {
-                    "queue_id": r.queue_id,
-                    "po_no": r.po_no,
-                    "pallet_id": r.pallet_id,
-                    "sku": r.sku,
-                    "barcode": r.barcode,
-                    "qty_gr": r.qty_gr,
-                    "qty_promo": 0,
-                    "qty_total": r.qty_gr or 0,
-                    "qty_remain_putaway": r.qty_remain_putaway,
-                    "flow_status": r.flow_status,
-                }
-                for r in rows
-            ]
-        })
+        result_rows = []
+
+        for r in rows:
+            product_name = ""
+            category = ""
+            uom = "EA"
+            pcb = 1
+
+            # Enrich history from master data so GR edit uses the correct PCB,
+            # not the frontend fallback value = 1.
+            try:
+                product_info = svc.get_product_scan_info(db, (r.barcode or "").strip())
+                product_name = product_info.get("product_name") or ""
+                category = product_info.get("category") or ""
+                uom = product_info.get("uom") or "EA"
+                pcb = int(product_info.get("pcb") or 1)
+            except Exception:
+                # Do not fail GR history if master data is missing/dirty.
+                pcb = 1
+
+            result_rows.append({
+                "queue_id": r.queue_id,
+                "po_no": r.po_no,
+                "pallet_id": r.pallet_id,
+                "sku": r.sku,
+                "barcode": r.barcode,
+                "product_name": product_name,
+                "category": category,
+                "uom": uom,
+                "pcb": pcb,
+                "qty_gr": r.qty_gr,
+                "qty_promo": 0,
+                "qty_total": r.qty_gr or 0,
+                "qty_remain_putaway": r.qty_remain_putaway,
+                "flow_status": r.flow_status,
+            })
+
+        return ok({"rows": result_rows})
     except Exception as e:
         return fail(e)
 
     
+
+@router.post("/gr/update-qty")
+def gr_update_qty(
+    request: Request,
+    pallet_id: str = Form(...),
+    pcb: int = Form(...),
+    carton_qty: int = Form(0),
+    loose_qty: int = Form(0),
+    qty_promo: int = Form(0),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = svc.update_gr_qty_after_confirm(
+            db=db,
+            pallet_id=pallet_id.strip(),
+            pcb=pcb,
+            carton_qty=carton_qty,
+            loose_qty=loose_qty,
+            qty_promo=qty_promo,
+            user_name=username(request),
+        )
+        return ok(result)
+    except Exception as e:
+        db.rollback()
+        return fail(e)
+
+
 @router.get("/putaway/tasks")
 def putaway_tasks(db: Session = Depends(get_db)):
     try:

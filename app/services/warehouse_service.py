@@ -207,6 +207,115 @@ def get_gr_history_by_po(db: Session, po_no: str, limit: int = 50):
     )
 
 
+
+def update_gr_qty_after_confirm(
+    db: Session,
+    pallet_id: str,
+    pcb: int,
+    carton_qty: int,
+    loose_qty: int,
+    qty_promo: int,
+    user_name: str = "developer",
+):
+    pallet_id = (pallet_id or "").strip().upper()
+    pcb = int(pcb or 0)
+    carton_qty = int(carton_qty or 0)
+    loose_qty = int(loose_qty or 0)
+    qty_promo = int(qty_promo or 0)
+
+    if not pallet_id:
+        raise ValueError("Thiếu mã PA")
+
+    if pcb <= 0:
+        raise ValueError("PCB phải lớn hơn 0")
+
+    if carton_qty < 0 or loose_qty < 0 or qty_promo < 0:
+        raise ValueError("Số lượng không được âm")
+
+    qty_base = pcb * carton_qty + loose_qty
+    qty_total = qty_base + qty_promo
+
+    if qty_total <= 0:
+        raise ValueError("Tổng số lượng mới phải lớn hơn 0")
+
+    queue = (
+        db.query(InboundQueue)
+        .filter(InboundQueue.pallet_id == pallet_id)
+        .first()
+    )
+
+    if not queue:
+        raise ValueError("Không tìm thấy PA trong danh sách GR")
+
+    flow_status = (queue.flow_status or "").upper()
+    if flow_status != "WAIT_PUTAWAY":
+        raise ValueError("PA đã Put Away, không được sửa GR. Vui lòng dùng Inventory Adjustment.")
+
+    old_qty = int(queue.qty_gr or 0)
+    now = datetime.utcnow()
+
+    queue.qty_gr = qty_total
+    queue.qty_remain_putaway = qty_total
+    queue.last_update = now
+
+    pallet_detail = (
+        db.query(PalletDetail)
+        .filter(PalletDetail.pallet_id == pallet_id)
+        .first()
+    )
+
+    if pallet_detail:
+        pallet_detail.qty_gr = qty_total
+        pallet_detail.qty_remain_putaway = qty_total
+        pallet_detail.last_update = now
+
+    gr_log = (
+        db.query(GrLog)
+        .filter(GrLog.pallet_id == pallet_id)
+        .order_by(GrLog.gr_id.desc())
+        .first()
+    )
+
+    if gr_log:
+        gr_log.qty_gr = qty_total
+
+    db.add(AuditLog(
+        operation="GR_EDIT_QTY",
+        reference_no=queue.po_no,
+        pallet_id=queue.pallet_id,
+        location_id="",
+        sku=queue.sku,
+        barcode=queue.barcode,
+        qty_before=old_qty,
+        qty_after=qty_total,
+        qty_change=qty_total - old_qty,
+        user_name=user_name,
+        remark=(
+            f"Sửa SL GR: PCB={pcb}, thùng={carton_qty}, "
+            f"lẻ={loose_qty}, KM={qty_promo}, tổng={qty_total}"
+        ),
+    ))
+
+    db.commit()
+    db.refresh(queue)
+
+    return {
+        "pallet_id": queue.pallet_id,
+        "po_no": queue.po_no,
+        "sku": queue.sku,
+        "barcode": queue.barcode,
+        "old_qty": old_qty,
+        "pcb": pcb,
+        "carton_qty": carton_qty,
+        "loose_qty": loose_qty,
+        "qty_promo": qty_promo,
+        "qty_gr": qty_base,
+        "qty_total": qty_total,
+        "qty_remain_putaway": queue.qty_remain_putaway,
+        "flow_status": queue.flow_status,
+    }
+
+
 def get_wait_putaway_tasks(db: Session):
     return (
         db.query(InboundQueue)

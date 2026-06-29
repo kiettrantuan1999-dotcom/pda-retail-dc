@@ -268,17 +268,75 @@
           <tr>
             <th>PA</th>
             <th>SKU</th>
+            <th>Tên sản phẩm</th>
+            <th>Barcode</th>
+            <th class="text-end">PCB</th>
             <th class="text-end">SL nhập</th>
             <th>Status</th>
+            <th class="text-end">Sửa</th>
           </tr>
         </thead>
         <tbody id="grHistoryBody">
           <tr>
-            <td colspan="4" class="text-muted small">Scan PO để xem lịch sử GR.</td>
+            <td colspan="8" class="text-muted small">Scan PO để xem lịch sử GR.</td>
           </tr>
         </tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<div id="editGrBox" class="card mt-3 d-none border-warning">
+  <div class="card-body">
+    <h5 class="fw-bold text-warning mb-3">✏️ Sửa số lượng GR</h5>
+
+    <div class="alert alert-warning py-2 mb-3">
+      Chỉ sửa được PA đang ở trạng thái <b>WAIT_PUTAWAY</b>. PA đã Put Away phải điều chỉnh bằng Inventory Adjustment.
+    </div>
+
+    <div class="mb-3 small">
+      <div><b>PA:</b> <span id="editPalletText">-</span></div>
+      <div><b>SKU:</b> <span id="editSkuText">-</span></div>
+      <div><b>Tên hàng:</b> <span id="editProductNameText">-</span></div>
+      <div><b>Barcode:</b> <span id="editBarcodeText">-</span></div>
+      <div><b>PCB master:</b> <span id="editMasterPcbText">-</span></div>
+      <div><b>SL hiện tại:</b> <span id="editCurrentQtyText">-</span></div>
+    </div>
+
+    <form id="editGrForm">
+      <input type="hidden" id="edit_pallet_id">
+
+      <div class="row g-2 mb-2">
+        <div class="col-4">
+          <label class="form-label fw-bold">PCB</label>
+          <input type="number" id="edit_pcb" class="form-control form-control-lg" min="1" value="1" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label fw-bold">Thùng chẵn</label>
+          <input type="number" id="edit_carton_qty" class="form-control form-control-lg" min="0" value="0" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label fw-bold">Kiện lẻ</label>
+          <input type="number" id="edit_loose_qty" class="form-control form-control-lg" min="0" value="0" required>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label fw-bold">SL khuyến mãi</label>
+          <input type="number" id="edit_qty_promo" class="form-control form-control-lg" min="0" value="0">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">Tổng SL mới</label>
+          <input type="number" id="edit_qty_total_preview" class="form-control form-control-lg fw-bold bg-light" readonly>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-warning btn-lg w-100">CẬP NHẬT SL GR</button>
+        <button type="button" id="cancelEditGrBtn" class="btn btn-outline-secondary btn-lg w-100">HỦY</button>
+      </div>
+    </form>
   </div>
 </div>
 

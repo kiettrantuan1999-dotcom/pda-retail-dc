@@ -24,6 +24,22 @@ document.addEventListener("DOMContentLoaded", function () {
   const historyBody = document.getElementById("grHistoryBody");
   const reloadHistoryBtn = document.getElementById("reloadHistoryBtn");
 
+  const editGrBox = document.getElementById("editGrBox");
+  const editGrForm = document.getElementById("editGrForm");
+  const cancelEditGrBtn = document.getElementById("cancelEditGrBtn");
+  const editPalletIdInput = document.getElementById("edit_pallet_id");
+  const editPalletText = document.getElementById("editPalletText");
+  const editSkuText = document.getElementById("editSkuText");
+  const editProductNameText = document.getElementById("editProductNameText");
+  const editBarcodeText = document.getElementById("editBarcodeText");
+  const editMasterPcbText = document.getElementById("editMasterPcbText");
+  const editCurrentQtyText = document.getElementById("editCurrentQtyText");
+  const editPcbInput = document.getElementById("edit_pcb");
+  const editCartonQtyInput = document.getElementById("edit_carton_qty");
+  const editLooseQtyInput = document.getElementById("edit_loose_qty");
+  const editQtyPromoInput = document.getElementById("edit_qty_promo");
+  const editQtyTotalPreview = document.getElementById("edit_qty_total_preview");
+
   const scannerBox = document.getElementById("scannerBox");
   const closeScannerBtn = document.getElementById("closeScannerBtn");
   const scannerTargetLabel = document.getElementById("scannerTargetLabel");
@@ -34,6 +50,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastDecodedText = "";
   let lastDecodedAt = 0;
   let currentProduct = null;
+  let grHistoryRows = {};
 
   poInput.focus();
   recalcQtyPreview();
@@ -57,6 +74,18 @@ document.addEventListener("DOMContentLoaded", function () {
   [pcbInput, cartonQtyInput, looseQtyInput, qtyPromoInput].forEach(function (input) {
     input.addEventListener("input", recalcQtyPreview);
   });
+
+  if (editPcbInput) {
+    [editPcbInput, editCartonQtyInput, editLooseQtyInput, editQtyPromoInput].forEach(function (input) {
+      input.addEventListener("input", recalcEditQtyPreview);
+    });
+  }
+
+  if (cancelEditGrBtn) {
+    cancelEditGrBtn.addEventListener("click", function () {
+      editGrBox.classList.add("d-none");
+    });
+  }
 
   function moveNextOnEnter(current, next) {
     current.addEventListener("keydown", function (e) {
@@ -165,6 +194,72 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+
+  function recalcEditQtyPreview() {
+  if (!editPcbInput) return 0;
+
+  const pcb = Math.max(Number(editPcbInput.value || 0), 0);
+  const cartonQty = Math.max(Number(editCartonQtyInput.value || 0), 0);
+  const looseQty = Math.max(Number(editLooseQtyInput.value || 0), 0);
+  const qtyPromo = Math.max(Number(editQtyPromoInput.value || 0), 0);
+
+  const total = pcb * cartonQty + looseQty + qtyPromo;
+
+  editQtyTotalPreview.value = String(total);
+  return total;
+}
+
+  function openEditGr(row) {
+    if (!editGrBox || !row) return;
+
+    editPalletIdInput.value = row.pallet_id || "";
+    editPalletText.innerText = row.pallet_id || "-";
+    editSkuText.innerText = row.sku || "-";
+    if (editProductNameText) editProductNameText.innerText = row.product_name || "-";
+    if (editBarcodeText) editBarcodeText.innerText = row.barcode || "-";
+    if (editMasterPcbText) editMasterPcbText.innerText = String(row.pcb || 1);
+    editCurrentQtyText.innerText = String(row.qty_total || row.qty_gr || 0);
+
+    editPcbInput.value = String(row.pcb || 1);
+    editCartonQtyInput.value = "0";
+    editLooseQtyInput.value = String(row.qty_total || row.qty_gr || 0);
+    editQtyPromoInput.value = "0";
+    recalcEditQtyPreview();
+
+    editGrBox.classList.remove("d-none");
+    editGrBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(function () {
+      editCartonQtyInput.focus();
+      editCartonQtyInput.select();
+    }, 120);
+  }
+
+  async function enrichHistoryRow(row) {
+    if (!row || !row.barcode) return row;
+
+    try {
+      const res = await fetch(`/api/gr/product/${encodeURIComponent(row.barcode)}`);
+      const data = await res.json();
+      if (data.ok && data.data) {
+        row.product_name = data.data.product_name || "";
+        row.pcb = Number(data.data.pcb || 1);
+      }
+    } catch (err) {
+      row.pcb = row.pcb || 1;
+    }
+
+    return row;
+  }
+
+function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function renderHistory(rows) {
     const po = poInput.value.trim();
     historySubtitle.innerText = po ? `PO: ${po} · ${rows.length} PA đã GR` : "Chưa chọn PO";
@@ -172,28 +267,60 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!rows.length) {
       historyBody.innerHTML = `
         <tr>
-          <td colspan="4" class="text-muted small">Chưa có PA nào được GR cho PO này.</td>
+          <td colspan="8" class="text-muted small">Chưa có PA nào được GR cho PO này.</td>
         </tr>
       `;
       return;
     }
 
     historyBody.innerHTML = rows.map(function (r) {
+      const canEdit = String(r.flow_status || "").toUpperCase() === "WAIT_PUTAWAY";
+      const pcb = Number(r.pcb || 1);
+
       return `
         <tr>
-          <td class="fw-semibold">${r.pallet_id}</td>
-          <td>${r.sku}</td>
-          <td class="text-end fw-semibold">${r.qty_gr}</td>
-          <td><span class="badge text-bg-secondary">${r.flow_status}</span></td>
+          <td class="fw-semibold text-nowrap">${escapeHtml(r.pallet_id || "")}</td>
+          <td class="text-nowrap">${escapeHtml(r.sku || "")}</td>
+          <td style="min-width: 180px;">${escapeHtml(r.product_name || "-")}</td>
+          <td class="text-nowrap">${escapeHtml(r.barcode || "-")}</td>
+          <td class="text-end fw-semibold">${pcb}</td>
+          <td class="text-end fw-semibold">${Number(r.qty_total || r.qty_gr || 0)}</td>
+          <td><span class="badge text-bg-secondary">${escapeHtml(r.flow_status || "")}</span></td>
+          <td class="text-end">
+            ${
+              canEdit
+                ? `<button
+                     type="button"
+                     class="btn btn-sm btn-outline-primary edit-gr-btn"
+                     data-pallet-id="${escapeHtml(r.pallet_id || "")}">
+                     Sửa
+                   </button>`
+                : `<span class="text-muted small">Khóa</span>`
+            }
+          </td>
         </tr>
       `;
     }).join("");
+
+    document.querySelectorAll(".edit-gr-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const palletId = btn.getAttribute("data-pallet-id");
+        const row = grHistoryRows[palletId];
+
+        if (!row) {
+          return showError("Không tìm thấy dữ liệu PA cần sửa");
+        }
+
+        openEditGr(row);
+      });
+    });
   }
 
   async function loadHistory() {
     const po = poInput.value.trim();
 
     if (!po) {
+      grHistoryRows = {};
       renderHistory([]);
       return;
     }
@@ -204,39 +331,28 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (!data.ok) {
         historyBody.innerHTML = `
-          <tr><td colspan="4" class="text-danger small">${data.error || "Không tải được lịch sử GR"}</td></tr>
+          <tr><td colspan="8" class="text-danger small">${data.error || "Không tải được lịch sử GR"}</td></tr>
         `;
         return;
       }
 
-      renderHistory(data.data.rows || []);
+      const rows = data.data.rows || [];
+      grHistoryRows = {};
+
+      rows.forEach(function (r) {
+        r.qty_total = Number(r.qty_total || r.qty_gr || 0);
+        r.pcb = Number(r.pcb || 1);
+        r.product_name = r.product_name || "";
+        r.barcode = r.barcode || "";
+        grHistoryRows[r.pallet_id] = r;
+      });
+
+      renderHistory(rows);
     } catch (err) {
       historyBody.innerHTML = `
-        <tr><td colspan="4" class="text-danger small">${err.message}</td></tr>
+        <tr><td colspan="8" class="text-danger small">${err.message}</td></tr>
       `;
     }
-  }
-
-  async function stopScanner() {
-    if (html5QrCode) {
-      try {
-        await html5QrCode.stop();
-      } catch (e) {
-        console.log("Scanner stop ignored:", e);
-      }
-
-      try {
-        await html5QrCode.clear();
-      } catch (e) {
-        console.log("Scanner clear ignored:", e);
-      }
-
-      html5QrCode = null;
-    }
-
-    scannerBox.classList.add("d-none");
-    activeTargetInput = null;
-    isStartingScanner = false;
   }
 
   function getScannerLabel(targetInputId) {
@@ -432,6 +548,60 @@ document.addEventListener("DOMContentLoaded", function () {
   closeScannerBtn.addEventListener("click", function () {
     stopScanner();
   });
+
+
+  if (editGrForm) {
+    editGrForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const palletId = editPalletIdInput.value.trim();
+      const pcb = Math.max(Number(editPcbInput.value || 0), 0);
+      const cartonQty = Math.max(Number(editCartonQtyInput.value || 0), 0);
+      const looseQty = Math.max(Number(editLooseQtyInput.value || 0), 0);
+      const qtyPromo = Math.max(Number(editQtyPromoInput.value || 0), 0);
+      const total = recalcEditQtyPreview();
+
+      if (!palletId) return showError("Không tìm thấy PA cần sửa");
+      if (pcb <= 0) return showError("PCB phải lớn hơn 0");
+      if (total <= 0) return showError("Tổng số lượng mới phải lớn hơn 0");
+
+      const formData = new FormData();
+      formData.append("pallet_id", palletId);
+      formData.append("pcb", String(pcb));
+      formData.append("carton_qty", String(cartonQty));
+      formData.append("loose_qty", String(looseQty));
+      formData.append("qty_promo", String(qtyPromo));
+
+      try {
+        const res = await fetch("/api/gr/update-qty", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          return showError(data.error || "Không cập nhật được số lượng GR");
+        }
+
+        resultBox.classList.remove("d-none");
+        resultTitle.innerText = "✅ Đã cập nhật số lượng GR";
+        resultTitle.className = "fw-bold mb-2 text-success";
+        resultText.innerHTML = `
+          <div><b>PA:</b> ${data.data.pallet_id}</div>
+          <div><b>SKU:</b> ${data.data.sku}</div>
+          <div><b>SL cũ:</b> ${data.data.old_qty}</div>
+          <div><b>SL mới:</b> ${data.data.qty_total}</div>
+          <div><b>Còn Put Away:</b> ${data.data.qty_remain_putaway}</div>
+        `;
+
+        editGrBox.classList.add("d-none");
+        await loadHistory();
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+  }
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
