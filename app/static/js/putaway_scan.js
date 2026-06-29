@@ -303,7 +303,7 @@ document.addEventListener("DOMContentLoaded", function () {
   if (closeScannerBtn) {
     closeScannerBtn.addEventListener("click", function () {
       if (typeof closeZxingScanner === "function") {
-        closeZxingScanner();
+        closeZxingScanner(true);
       }
     });
   }

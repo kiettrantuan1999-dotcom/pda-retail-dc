@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let html5QrCode = null;
   let activeTarget = null;
+  let suppressAutoScanUntil = 0;
 
   locationInput.focus();
 
@@ -78,15 +79,31 @@ document.addEventListener("DOMContentLoaded", function () {
     barcodeInput.focus();
   }
 
-  async function stopScanner() {
+  function restoreManualInput(targetInput) {
+    if (!targetInput) return;
+    suppressAutoScanUntil = Date.now() + 1500;
+    setTimeout(function () {
+      targetInput.focus();
+      if (targetInput.select) targetInput.select();
+    }, 80);
+  }
+
+  async function stopScanner(restoreFocus) {
+    const targetToRestore = activeTarget;
+
     if (html5QrCode) {
       await html5QrCode.stop().catch(() => {});
+      try { await html5QrCode.clear(); } catch (e) {}
       html5QrCode = null;
     }
     scannerBox.classList.add("d-none");
+
+    if (restoreFocus) restoreManualInput(targetToRestore);
   }
 
   async function startScanner(targetId) {
+    if (Date.now() < suppressAutoScanUntil) return;
+
     activeTarget = document.getElementById(targetId);
     scannerBox.classList.remove("d-none");
     html5QrCode = new Html5Qrcode("reader");
@@ -110,7 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
     btn.addEventListener("click", () => startScanner(btn.dataset.target));
   });
 
-  closeScannerBtn.addEventListener("click", stopScanner);
+  closeScannerBtn.addEventListener("click", function () { stopScanner(true); });
   loadTaskBtn.addEventListener("click", loadTask);
   saveCountBtn.addEventListener("click", saveCount);
 

@@ -51,6 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastDecodedAt = 0;
   let currentProduct = null;
   let grHistoryRows = {};
+  let suppressAutoScanUntil = 0;
 
   poInput.focus();
   recalcQtyPreview();
@@ -450,7 +451,47 @@ function escapeHtml(value) {
     return rawMessage || "Không mở được camera. Hãy kiểm tra quyền Camera và thử lại.";
   }
 
-  async function startScanner(targetInputId) {
+function restoreManualInput(targetInput) {
+    if (!targetInput) return;
+
+    suppressAutoScanUntil = Date.now() + 1500;
+
+    setTimeout(function () {
+      targetInput.focus();
+      if (targetInput.select) targetInput.select();
+    }, 80);
+  }
+
+  async function stopScanner(restoreFocus) {
+    const targetToRestore = activeTargetInput;
+
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+      } catch (e) {
+        console.log("Scanner stop ignored:", e);
+      }
+
+      try {
+        await html5QrCode.clear();
+      } catch (e) {
+        console.log("Scanner clear ignored:", e);
+      }
+
+      html5QrCode = null;
+    }
+
+    if (scannerBox) scannerBox.classList.add("d-none");
+
+    activeTargetInput = null;
+    isStartingScanner = false;
+
+    if (restoreFocus) {
+      restoreManualInput(targetToRestore);
+    }
+  }
+
+    async function startScanner(targetInputId) {
     if (isStartingScanner) return;
 
     if (!window.Html5Qrcode) {
@@ -540,13 +581,14 @@ function escapeHtml(value) {
 
   [poInput, palletInput, barcodeInput].forEach(function (input) {
     input.addEventListener("click", function () {
+      if (Date.now() < suppressAutoScanUntil) return;
       if (scannerBox && !scannerBox.classList.contains("d-none")) return;
       startScanner(input.id);
     });
   });
 
   closeScannerBtn.addEventListener("click", function () {
-    stopScanner();
+    stopScanner(true);
   });
 
 

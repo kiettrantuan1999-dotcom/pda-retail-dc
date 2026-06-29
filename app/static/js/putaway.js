@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let isStartingScanner = false;
   let lastDecodedText = "";
   let lastDecodedAt = 0;
+  let suppressAutoScanUntil = 0;
 
   if (locationInput) locationInput.focus();
 
@@ -82,7 +83,18 @@ document.addEventListener("DOMContentLoaded", function () {
     locationInput.addEventListener("blur", validateLocationClient);
   }
 
-  async function stopScanner() {
+  function restoreManualInput(targetInput) {
+    if (!targetInput) return;
+    suppressAutoScanUntil = Date.now() + 1500;
+    setTimeout(function () {
+      targetInput.focus();
+      if (targetInput.select) targetInput.select();
+    }, 80);
+  }
+
+  async function stopScanner(restoreFocus) {
+    const targetToRestore = locationInput;
+
     if (html5QrCode) {
       try { await html5QrCode.stop(); } catch (e) { console.log("Scanner stop ignored", e); }
       try { await html5QrCode.clear(); } catch (e) { console.log("Scanner clear ignored", e); }
@@ -90,6 +102,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (scannerBox) scannerBox.classList.add("d-none");
     isStartingScanner = false;
+
+    if (restoreFocus) restoreManualInput(targetToRestore);
   }
 
   function normalizeCameraError(err) {
@@ -180,11 +194,12 @@ document.addEventListener("DOMContentLoaded", function () {
   if (scanLocationBtn) scanLocationBtn.addEventListener("click", startScanner);
   if (locationInput) {
     locationInput.addEventListener("click", function () {
+      if (Date.now() < suppressAutoScanUntil) return;
       if (scannerBox && !scannerBox.classList.contains("d-none")) return;
       startScanner();
     });
   }
-  if (closeScannerBtn) closeScannerBtn.addEventListener("click", stopScanner);
+  if (closeScannerBtn) closeScannerBtn.addEventListener("click", function () { stopScanner(true); });
 
   if (!form) return;
 

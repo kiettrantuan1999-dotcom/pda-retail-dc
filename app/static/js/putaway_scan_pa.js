@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let isStartingScanner = false;
   let lastDecodedText = "";
   let lastDecodedAt = 0;
+  let suppressAutoScanUntil = 0;
 
   if (palletInput) palletInput.focus();
 
@@ -20,7 +21,18 @@ document.addEventListener("DOMContentLoaded", function () {
     resultBox.innerText = message;
   }
 
-  async function stopScanner() {
+  function restoreManualInput(targetInput) {
+    if (!targetInput) return;
+    suppressAutoScanUntil = Date.now() + 1500;
+    setTimeout(function () {
+      targetInput.focus();
+      if (targetInput.select) targetInput.select();
+    }, 80);
+  }
+
+  async function stopScanner(restoreFocus) {
+    const targetToRestore = palletInput;
+
     if (html5QrCode) {
       try { await html5QrCode.stop(); } catch (e) { console.log("Scanner stop ignored", e); }
       try { await html5QrCode.clear(); } catch (e) { console.log("Scanner clear ignored", e); }
@@ -28,6 +40,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (scannerBox) scannerBox.classList.add("d-none");
     isStartingScanner = false;
+
+    if (restoreFocus) restoreManualInput(targetToRestore);
   }
 
   async function findPallet() {
@@ -150,10 +164,11 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
     palletInput.addEventListener("click", function () {
+      if (Date.now() < suppressAutoScanUntil) return;
       if (scannerBox && !scannerBox.classList.contains("d-none")) return;
       startScanner();
     });
   }
   if (scanPalletBtn) scanPalletBtn.addEventListener("click", startScanner);
-  if (closeScannerBtn) closeScannerBtn.addEventListener("click", stopScanner);
+  if (closeScannerBtn) closeScannerBtn.addEventListener("click", function () { stopScanner(true); });
 });

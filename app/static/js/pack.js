@@ -212,7 +212,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (closeScannerBtn) {
     closeScannerBtn.addEventListener("click", function () {
-      closeZxingScanner();
+      closeZxingScanner(true);
     });
   }
 });

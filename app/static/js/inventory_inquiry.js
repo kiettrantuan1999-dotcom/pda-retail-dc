@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const closeScannerBtn = document.getElementById("closeScannerBtn");
 
   let html5QrCode = null;
+  let suppressAutoScanUntil = 0;
 
   qInput.focus();
 
@@ -54,15 +55,29 @@ document.addEventListener("DOMContentLoaded", function () {
     resultBox.innerHTML = html;
   }
 
-  async function stopScanner() {
+  function restoreManualInput(targetInput) {
+    if (!targetInput) return;
+    suppressAutoScanUntil = Date.now() + 1500;
+    setTimeout(function () {
+      targetInput.focus();
+      if (targetInput.select) targetInput.select();
+    }, 80);
+  }
+
+  async function stopScanner(restoreFocus) {
     if (html5QrCode) {
       await html5QrCode.stop().catch(() => {});
+      try { await html5QrCode.clear(); } catch (e) {}
       html5QrCode = null;
     }
     scannerBox.classList.add("d-none");
+
+    if (restoreFocus) restoreManualInput(qInput);
   }
 
   async function startScanner() {
+    if (Date.now() < suppressAutoScanUntil) return;
+
     scannerBox.classList.remove("d-none");
     html5QrCode = new Html5Qrcode("reader");
 
@@ -86,5 +101,5 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   scanBtn.addEventListener("click", startScanner);
-  closeScannerBtn.addEventListener("click", stopScanner);
+  closeScannerBtn.addEventListener("click", function () { stopScanner(true); });
 });
