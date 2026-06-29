@@ -7,7 +7,7 @@
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h5 class="fw-bold">📦 Product Master</h5>
-    <div class="text-muted mb-2">Dùng để map Barcode ↔ SKU.</div>
+    <div class="text-muted mb-2">Dùng để map Barcode ↔ SKU và ngành hàng.</div>
 
     <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/product-master">
       ⬇ Tải template Product Master
@@ -38,12 +38,37 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-3">
+<div class="card shadow-sm mb-3 border-primary">
   <div class="card-body">
-    <h5 class="fw-bold">📍 Category Aisle Master</h5>
+    <h5 class="fw-bold">📍 Location Master</h5>
+    <div class="text-muted mb-2">Dùng để quản lý mã vị trí, zone, trạng thái, sức chứa.</div>
+
+    <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/location-master">
+      ⬇ Tải template Location Master
+    </a>
+
+    <select id="locationMode" class="form-select form-select-lg mb-2">
+      <option value="upsert">Upsert - cập nhật/thêm mới</option>
+      <option value="replace">Replace - xóa cũ import mới</option>
+    </select>
+
+    <input id="locationFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
+
+    <button type="button" id="importLocationBtn" class="btn btn-success w-100">
+      IMPORT LOCATION MASTER
+    </button>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3 border-warning">
+  <div class="card-body">
+    <h5 class="fw-bold">🧭 Category Put Away Rule</h5>
+    <div class="text-muted mb-2">
+      Rule ngành hàng → dãy gợi ý. Dùng khi SKU không có override riêng.
+    </div>
 
     <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/category-aisle">
-      ⬇ Tải template Category Aisle
+      ⬇ Tải template Category Put Away Rule
     </a>
 
     <select id="categoryMode" class="form-select form-select-lg mb-2">
@@ -54,7 +79,31 @@
     <input id="categoryFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
 
     <button type="button" id="importCategoryBtn" class="btn btn-success w-100">
-      IMPORT CATEGORY AISLE
+      IMPORT CATEGORY RULE
+    </button>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3 border-danger">
+  <div class="card-body">
+    <h5 class="fw-bold">⭐ SKU Location Override</h5>
+    <div class="text-muted mb-2">
+      SKU đặc biệt → dãy chỉ định. Rule này ưu tiên cao hơn ngành hàng.
+    </div>
+
+    <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/sku-location-override">
+      ⬇ Tải template SKU Override
+    </a>
+
+    <select id="skuOverrideMode" class="form-select form-select-lg mb-2">
+      <option value="upsert">Upsert - cập nhật/thêm mới</option>
+      <option value="replace">Replace - xóa cũ import mới</option>
+    </select>
+
+    <input id="skuOverrideFile" type="file" class="form-control form-control-lg mb-2" accept=".xlsx,.xls">
+
+    <button type="button" id="importSkuOverrideBtn" class="btn btn-success w-100">
+      IMPORT SKU OVERRIDE
     </button>
   </div>
 </div>
@@ -82,9 +131,7 @@
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h5 class="fw-bold">🚚 DO Detail</h5>
-    <div class="text-muted mb-2">
-      Nhập DO để tự sinh phiếu lấy hàng chẵn/lẻ.
-    </div>
+    <div class="text-muted mb-2">Nhập DO để tự sinh phiếu lấy hàng chẵn/lẻ.</div>
 
     <a class="btn btn-outline-primary w-100 mb-2" href="/api/master-data/template/do-detail">
       ⬇ Tải template DO
@@ -102,6 +149,6 @@
 
 <a href="/" class="btn btn-outline-secondary w-100">⬅ Về trang chủ</a>
 
-<script src="/static/js/master_data_import.js?v=4"></script>
+<script src="/static/js/master_data_import.js?v=22"></script>
 
 {% endblock %}

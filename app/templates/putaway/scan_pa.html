@@ -1,14 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3">
+<div class="mb-3 no-scanner">
   <h4 class="fw-bold mb-0">📷 Quét PA/Pallet</h4>
-  <div class="text-muted">Quét mã PA để tìm nhiệm vụ cất hàng</div>
+  <div class="text-muted">Quét PA để load thông tin SKU, chẵn/lẻ và dãy gợi ý.</div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm no-scanner">
   <div class="card-body">
-
     <div class="mb-3">
       <label class="form-label fw-bold">Mã PA/Pallet</label>
       <div class="input-group">
@@ -19,48 +18,90 @@
           placeholder="Quét hoặc nhập mã PA"
           autocomplete="off"
         >
-        <button type="button" class="btn btn-dark btn-lg" id="scanPalletBtn">
+        <button type="button" class="btn btn-dark btn-lg scan-btn" id="scanPalletBtn">
           📷
         </button>
       </div>
     </div>
 
     <button type="button" class="btn btn-primary btn-lg w-100" id="findPalletBtn">
-      Tìm nhiệm vụ cất hàng
+      TÌM PA
     </button>
-
   </div>
 </div>
 
-<div id="scannerBox" class="scanner-box card mb-3 mt-3 d-none">
+<div id="previewBox" class="card shadow-sm mt-3 d-none no-scanner">
   <div class="card-body">
-    <div class="fw-bold mb-2">Đưa mã PA/Pallet vào khung camera</div>
+    <div id="typeBadge" class="alert mb-3 fw-bold text-center"></div>
 
-    <video
-      id="scannerVideo"
-      style="width: 100%; border-radius: 8px; background: #000;"
-      playsinline
-      muted
-    ></video>
+    <div class="row g-2 small">
+      <div class="col-4 text-muted">PO</div><div class="col-8 fw-bold" id="poNo">-</div>
+      <div class="col-4 text-muted">PA</div><div class="col-8 fw-bold" id="paCode">-</div>
+      <div class="col-4 text-muted">SKU</div><div class="col-8 fw-bold" id="sku">-</div>
+      <div class="col-4 text-muted">Tên hàng</div><div class="col-8 fw-bold" id="productName">-</div>
+      <div class="col-4 text-muted">Barcode</div><div class="col-8 fw-bold" id="barcode">-</div>
+      <div class="col-4 text-muted">Category</div><div class="col-8 fw-bold" id="category">-</div>
+      <div class="col-4 text-muted">PCB</div><div class="col-8 fw-bold" id="pcb">-</div>
+      <div class="col-4 text-muted">SL cần cất</div><div class="col-8 fw-bold text-danger" id="qtyRemain">-</div>
+    </div>
 
-    <button type="button" class="btn btn-danger w-100 mt-2" id="closeScannerBtn">
-      Đóng camera
-    </button>
+    <hr>
+    <div class="fw-bold mb-2">🧭 Dãy gợi ý</div>
+    <div id="suggestionSource" class="text-muted small mb-2"></div>
+    <div id="suggestionList"></div>
+
+    <a id="goPutawayBtn" href="#" class="btn btn-success btn-lg w-100 mt-3">
+      TIẾP TỤC SCAN LOCATION
+    </a>
   </div>
 </div>
 
-<div id="resultBox" class="alert mt-3 d-none"></div>
+<div id="scannerBox" class="scanner-modal d-none">
+  <div class="scanner-header">
+    <div id="scannerTargetLabel" class="fw-bold">Đưa mã PA vào khung để quét</div>
+    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+  </div>
+  <div id="reader" class="scanner-reader"></div>
+</div>
 
-<div class="mt-3">
+<div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
+
+<div class="mt-3 no-scanner">
   <a href="/putaway" class="btn btn-secondary w-100">⬅ Danh sách cất hàng</a>
 </div>
 
-<div class="mt-2">
-  <a href="/" class="btn btn-secondary w-100">⬅ Về trang chủ</a>
-</div>
+<style>
+  .scanner-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
 
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
-<script src="/static/js/scanner_zxing.js"></script>
-<script src="/static/js/putaway_scan_pa.js"></script>
+  .scanner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(0,0,0,.85);
+  }
+
+  .scanner-reader {
+    flex: 1;
+    width: 100%;
+  }
+
+  .scanner-reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+</style>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="/static/js/putaway_scan_pa.js?v=22"></script>
 
 {% endblock %}

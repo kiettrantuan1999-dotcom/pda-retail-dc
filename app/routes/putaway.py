@@ -33,8 +33,8 @@ def redirect_wrong_tasks_url():
 
 
 @router.get("/scan")
-def redirect_wrong_scan_url():
-    return RedirectResponse(url="/putaway")
+def redirect_scan_url():
+    return RedirectResponse(url="/putaway/scan-pa")
 @router.get("/scan-pa", response_class=HTMLResponse)
 def putaway_scan_pa_page(request: Request):
     return templates.TemplateResponse(
@@ -56,7 +56,10 @@ def putaway_scan(
     task = None
     for t in tasks:
         if int(t.queue_id) == int(queue_id):
-            task = t
+            try:
+                task = svc.get_putaway_by_pallet(db, t.pallet_id)
+            except Exception:
+                task = None
             break
 
     return templates.TemplateResponse(

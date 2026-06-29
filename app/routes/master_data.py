@@ -12,6 +12,8 @@ from app.services import picking_service
 from app.db.session import get_db
 from app.models.tables import (
     CategoryAisleMaster,
+    SkuLocationOverride,
+    LocationMaster,
     PoDetail,
     ProductMaster,
     SkuMaster,
@@ -61,6 +63,26 @@ def safe_int(value, default=0):
         return int(float(value))
     except Exception:
         return default
+
+
+def safe_bool(value, default=True):
+    if pd.isna(value):
+        return default
+    text = str(value).strip().upper()
+    if text in ["TRUE", "1", "YES", "Y", "ACTIVE", "HOẠT ĐỘNG"]:
+        return True
+    if text in ["FALSE", "0", "NO", "N", "INACTIVE", "KHÔNG"]:
+        return False
+    return default
+
+
+def normalize_putaway_type(value):
+    text = safe_text(value).upper()
+    if text in ["CHẴN", "CHAN", "CASE", "EVEN"]:
+        return "CHAN"
+    if text in ["LẺ", "LE", "ODD", "EACH"]:
+        return "LE"
+    return text
 
 
 def read_excel_file(file: UploadFile):
@@ -119,15 +141,72 @@ def download_category_aisle_template():
         [
             {
                 "category": "Bánh kẹo",
-                "zone": "PICK_FACE",
+                "putaway_type": "LE",
+                "zone": "PICK_FACE_LE",
                 "aisle": "A01",
                 "priority": 1,
+                "active": "TRUE",
                 "note": "Dãy gợi ý theo ngành hàng",
-            }
+            },
+            {
+                "category": "Hóa mỹ phẩm",
+                "putaway_type": "CHAN",
+                "zone": "PALLET_CHAN",
+                "aisle": "P01",
+                "priority": 1,
+                "active": "TRUE",
+                "note": "Dãy chẵn theo ngành hàng",
+            },
         ]
     )
 
     return excel_response(df, "category_aisle_master_template.xlsx")
+
+
+@router.get("/api/master-data/template/location-master")
+def download_location_master_template():
+    df = pd.DataFrame(
+        [
+            {
+                "location_id": "A01-01-01",
+                "zone": "PICK_FACE_LE",
+                "location_type": "PICK_FACE",
+                "status": "ACTIVE",
+                "max_capacity": 1,
+                "pick_index": 1,
+            },
+            {
+                "location_id": "P01-01-01",
+                "zone": "PALLET_CHAN",
+                "location_type": "PALLET",
+                "status": "ACTIVE",
+                "max_capacity": 1,
+                "pick_index": 100,
+            },
+        ]
+    )
+
+    return excel_response(df, "location_master_template.xlsx")
+
+
+@router.get("/api/master-data/template/sku-location-override")
+def download_sku_location_override_template():
+    df = pd.DataFrame(
+        [
+            {
+                "sku": "10303906",
+                "barcode": "8992775347256",
+                "product_name": "Sample Product",
+                "putaway_type": "LE",
+                "aisle": "A02",
+                "priority": 1,
+                "active": "TRUE",
+                "reason": "SKU đặc biệt, bỏ qua rule ngành hàng",
+            }
+        ]
+    )
+
+    return excel_response(df, "sku_location_override_template.xlsx")
 
 
 @router.get("/api/master-data/template/po-detail")
@@ -381,9 +460,11 @@ async def import_category_aisle(
 
         for _, row in df.iterrows():
             category = safe_text(row.get("category"))
+            putaway_type = normalize_putaway_type(row.get("putaway_type"))
             zone = safe_text(row.get("zone"), "PICK_FACE") or "PICK_FACE"
             aisle = safe_text(row.get("aisle")).upper()
             priority = safe_int(row.get("priority"), 1)
+            active = safe_bool(row.get("active"), True)
             note = safe_text(row.get("note"))
 
             if not category or not aisle:
@@ -400,15 +481,19 @@ async def import_category_aisle(
 
             if existing:
                 existing.zone = zone
+                existing.putaway_type = putaway_type
                 existing.priority = priority
+                existing.active = active
                 existing.note = note
             else:
                 db.add(
                     CategoryAisleMaster(
                         category=category,
                         zone=zone,
+                        putaway_type=putaway_type,
                         aisle=aisle,
                         priority=priority,
+                        active=active,
                         note=note,
                     )
                 )
@@ -431,6 +516,147 @@ async def import_category_aisle(
             "ok": False,
             "error": str(e),
         }
+
+
+# =========================
+# IMPORT LOCATION MASTER
+# =========================
+
+@router.post("/api/master-data/import/location-master")
+async def import_location_master(
+    mode: str = "upsert",
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    required_cols = ["location_id"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        return {"ok": False, "error": f"Thiếu cột: {', '.join(missing)}"}
+
+    inserted = updated = skipped = 0
+
+    try:
+        if mode == "replace":
+            db.query(LocationMaster).delete()
+            db.flush()
+
+        for _, row in df.iterrows():
+            location_id = safe_text(row.get("location_id")).upper()
+            if not location_id:
+                skipped += 1
+                continue
+
+            zone = safe_text(row.get("zone"), "")
+            location_type = safe_text(row.get("location_type"), "PICK_FACE") or "PICK_FACE"
+            status = safe_text(row.get("status"), "ACTIVE").upper() or "ACTIVE"
+            max_capacity = safe_int(row.get("max_capacity"), 1)
+            pick_index = safe_int(row.get("pick_index"), 999999)
+
+            existing = db.query(LocationMaster).filter(LocationMaster.location_id == location_id).first()
+            if existing:
+                existing.zone = zone
+                existing.location_type = location_type
+                existing.status = status
+                existing.max_capacity = max_capacity
+                existing.pick_index = pick_index
+                updated += 1
+            else:
+                db.add(LocationMaster(
+                    location_id=location_id,
+                    zone=zone,
+                    location_type=location_type,
+                    status=status,
+                    max_capacity=max_capacity,
+                    pick_index=pick_index,
+                ))
+                inserted += 1
+
+        db.commit()
+        return {"ok": True, "data": {"inserted_rows": inserted, "updated_rows": updated, "skipped_rows": skipped, "imported_rows": inserted + updated, "mode": mode}}
+    except Exception as e:
+        db.rollback()
+        return {"ok": False, "error": str(e)}
+
+
+# =========================
+# IMPORT SKU LOCATION OVERRIDE
+# =========================
+
+@router.post("/api/master-data/import/sku-location-override")
+async def import_sku_location_override(
+    mode: str = "upsert",
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        df = read_excel_file(file)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    required_cols = ["sku", "aisle"]
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        return {"ok": False, "error": f"Thiếu cột: {', '.join(missing)}"}
+
+    inserted = updated = skipped = 0
+
+    try:
+        if mode == "replace":
+            db.query(SkuLocationOverride).delete()
+            db.flush()
+
+        for _, row in df.iterrows():
+            sku = safe_text(row.get("sku")).upper()
+            aisle = safe_text(row.get("aisle")).upper()
+            if not sku or not aisle:
+                skipped += 1
+                continue
+
+            barcode = safe_text(row.get("barcode"))
+            product_name = safe_text(row.get("product_name"))
+            putaway_type = normalize_putaway_type(row.get("putaway_type"))
+            priority = safe_int(row.get("priority"), 1)
+            active = safe_bool(row.get("active"), True)
+            reason = safe_text(row.get("reason"))
+
+            existing = db.query(SkuLocationOverride).filter(
+                SkuLocationOverride.sku == sku,
+                SkuLocationOverride.aisle == aisle,
+            ).first()
+
+            if existing:
+                existing.barcode = barcode
+                existing.product_name = product_name
+                existing.putaway_type = putaway_type
+                existing.priority = priority
+                existing.active = active
+                existing.reason = reason
+                existing.last_update = datetime.utcnow()
+                updated += 1
+            else:
+                db.add(SkuLocationOverride(
+                    sku=sku,
+                    barcode=barcode,
+                    product_name=product_name,
+                    putaway_type=putaway_type,
+                    aisle=aisle,
+                    priority=priority,
+                    active=active,
+                    reason=reason,
+                    last_update=datetime.utcnow(),
+                ))
+                inserted += 1
+
+        db.commit()
+        return {"ok": True, "data": {"inserted_rows": inserted, "updated_rows": updated, "skipped_rows": skipped, "imported_rows": inserted + updated, "mode": mode}}
+    except Exception as e:
+        db.rollback()
+        return {"ok": False, "error": str(e)}
 
 
 # =========================

@@ -129,6 +129,12 @@ class CategoryAisleMaster(Base):
         default="PICK_FACE",
     )
 
+    putaway_type: Mapped[str] = mapped_column(
+        String(20),
+        default="",
+        index=True,
+    )
+
     aisle: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -144,12 +150,38 @@ class CategoryAisleMaster(Base):
         default="",
     )
 
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        index=True,
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "category",
             "aisle",
             name="uq_category_aisle",
         ),
+    )
+
+
+class SkuLocationOverride(Base):
+    __tablename__ = "sku_location_override"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sku: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    barcode: Mapped[str] = mapped_column(String(100), default="", index=True)
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    putaway_type: Mapped[str] = mapped_column(String(20), default="", index=True)
+    aisle: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=1)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("sku", "aisle", name="uq_sku_location_override"),
     )
 
 

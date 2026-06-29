@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3">
+<div class="mb-3 no-scanner">
   <h4 class="fw-bold mb-0">📍 Xác nhận cất hàng</h4>
-  <div class="text-muted">Quét vị trí để cất pallet</div>
+  <div class="text-muted">Scan vị trí sau khi hệ thống đã gợi ý dãy cất hàng.</div>
 </div>
 
 {% if error %}
@@ -11,24 +11,52 @@
 <a href="/putaway" class="btn btn-secondary w-100">⬅ Quay lại</a>
 {% elif task %}
 
-<div class="card mb-3 shadow-sm">
+<div class="card mb-3 shadow-sm no-scanner">
   <div class="card-body">
-    <div><b>PO:</b> {{ task.po_no }}</div>
-    <div><b>Pallet:</b> {{ task.pallet_id }}</div>
-    <div><b>SKU:</b> {{ task.sku }}</div>
-    <div><b>Barcode:</b> {{ task.barcode }}</div>
-    <div><b>Số lượng GR:</b> {{ task.qty_gr }}</div>
-    <div><b>Đã cất:</b> {{ task.qty_putaway }}</div>
-    <div class="fw-bold text-danger fs-5">
-      Còn phải cất: {{ task.qty_remain_putaway }}
+    {% if task.putaway_type == 'CHAN' %}
+      <div class="alert alert-success fw-bold text-center mb-3">🟢 HÀNG CHẴN</div>
+    {% elif task.putaway_type == 'LE' %}
+      <div class="alert alert-warning fw-bold text-center mb-3">🟡 HÀNG LẺ</div>
+    {% else %}
+      <div class="alert alert-secondary fw-bold text-center mb-3">⚪ CHƯA XÁC ĐỊNH CHẴN/LẺ</div>
+    {% endif %}
+
+    <div class="row g-2 small">
+      <div class="col-4 text-muted">PO</div><div class="col-8 fw-bold">{{ task.po_no }}</div>
+      <div class="col-4 text-muted">Pallet</div><div class="col-8 fw-bold">{{ task.pallet_id }}</div>
+      <div class="col-4 text-muted">SKU</div><div class="col-8 fw-bold">{{ task.sku }}</div>
+      <div class="col-4 text-muted">Tên hàng</div><div class="col-8 fw-bold">{{ task.product_name or '-' }}</div>
+      <div class="col-4 text-muted">Barcode</div><div class="col-8 fw-bold">{{ task.barcode }}</div>
+      <div class="col-4 text-muted">Category</div><div class="col-8 fw-bold">{{ task.category or '-' }}</div>
+      <div class="col-4 text-muted">PCB</div><div class="col-8 fw-bold">{{ task.pcb }}</div>
+      <div class="col-4 text-muted">Số lượng GR</div><div class="col-8 fw-bold">{{ task.qty_gr }}</div>
+      <div class="col-4 text-muted">Đã cất</div><div class="col-8 fw-bold">{{ task.qty_putaway }}</div>
+      <div class="col-4 text-muted">Còn cất</div><div class="col-8 fw-bold text-danger fs-5">{{ task.qty_remain_putaway }}</div>
     </div>
   </div>
 </div>
 
-<form id="putawayForm">
+<div class="card mb-3 shadow-sm no-scanner">
+  <div class="card-body">
+    <div class="fw-bold mb-2">🧭 Dãy gợi ý</div>
+    <div class="text-muted small mb-2">{{ task.suggestion_source_label }}</div>
 
+    {% if task.suggested_aisles %}
+      {% for x in task.suggested_aisles %}
+        <div class="alert {% if x.is_override %}alert-danger{% else %}alert-info{% endif %} py-2 mb-2 suggested-aisle" data-aisle="{{ x.aisle }}">
+          <div class="fw-bold">{% if x.is_override %}⭐ Override SKU{% else %}📍 Dãy{% endif %}: {{ x.aisle }}</div>
+          <div class="small">Loại: {{ x.putaway_type }} | Ưu tiên: {{ x.priority }}</div>
+          <div class="small text-muted">{{ x.note }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="alert alert-warning py-2">⚠ Chưa có rule gợi ý. Nhân viên scan vị trí thực tế và quản lý kiểm tra lại.</div>
+    {% endif %}
+  </div>
+</div>
+
+<form id="putawayForm" class="no-scanner">
   <input type="hidden" name="queue_id" value="{{ task.queue_id }}">
-
 
   <div class="mb-3">
     <label class="form-label fw-bold">Vị trí</label>
@@ -42,20 +70,11 @@
         autocomplete="off"
         required
       >
-      <button type="button" class="btn btn-dark btn-lg" id="scanLocationBtn">
-        📷
-      </button>
+      <button type="button" class="btn btn-dark btn-lg" id="scanLocationBtn">📷</button>
     </div>
   </div>
 
-  <div id="scannerBox" class="card mb-3 d-none">
-    <div class="card-body">
-      <div id="reader" style="width: 100%;"></div>
-      <button type="button" class="btn btn-danger w-100 mt-2" id="closeScannerBtn">
-        Đóng camera
-      </button>
-    </div>
-  </div>
+  <div id="locationCheckBox" class="alert d-none"></div>
 
   <div class="mb-3">
     <label class="form-label fw-bold">Số lượng cất</label>
@@ -71,41 +90,71 @@
     >
   </div>
 
-  <button type="submit" class="btn btn-success btn-lg w-100">
-    ✅ Xác nhận cất hàng
-  </button>
-
+  <button type="submit" class="btn btn-success btn-lg w-100">✅ Xác nhận cất hàng</button>
 </form>
 
-<div id="resultBox" class="alert mt-3 d-none"></div>
+<div id="scannerBox" class="scanner-modal d-none">
+  <div class="scanner-header">
+    <div id="scannerTargetLabel" class="fw-bold">Đang quét vị trí</div>
+    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+  </div>
+  <div id="reader" class="scanner-reader"></div>
+</div>
 
-<div id="successBox" class="card shadow-sm mt-3 d-none">
+<div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
+
+<div id="successBox" class="card shadow-sm mt-3 d-none no-scanner">
   <div class="card-body text-center">
     <h4 class="fw-bold text-success">✅ CẤT HÀNG THÀNH CÔNG</h4>
-
     <hr>
-
     <div><b>PO:</b> <span id="successPo">{{ task.po_no }}</span></div>
     <div><b>Pallet:</b> <span id="successPallet">{{ task.pallet_id }}</span></div>
     <div><b>Vị trí:</b> <span id="successLocation"></span></div>
     <div><b>Số lượng:</b> <span id="successQty"></span></div>
+    <div id="successWarning" class="alert alert-warning mt-3 d-none"></div>
 
-    <a href="/putaway" class="btn btn-primary w-100 mt-3">
-      Cất pallet tiếp theo
-    </a>
-
-    <a href="/" class="btn btn-secondary w-100 mt-2">
-        Về trang chủ
-    </a>
+    <a href="/putaway/scan-pa" class="btn btn-primary w-100 mt-3">Cất pallet tiếp theo</a>
+    <a href="/" class="btn btn-secondary w-100 mt-2">Về trang chủ</a>
   </div>
 </div>
 
-<div class="mt-3">
+<div class="mt-3 no-scanner">
   <a href="/putaway" class="btn btn-secondary w-100">⬅ Danh sách cất hàng</a>
 </div>
 
+<style>
+  .scanner-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scanner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(0,0,0,.85);
+  }
+
+  .scanner-reader {
+    flex: 1;
+    width: 100%;
+  }
+
+  .scanner-reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+</style>
+
 <script src="https://unpkg.com/html5-qrcode"></script>
-<script src="/static/js/putaway.js"></script>
+<script src="/static/js/putaway.js?v=22"></script>
 
 {% endif %}
 

@@ -11,6 +11,7 @@ from app.models.tables import (
     InventoryBalance,
     LocationMaster,
     CategoryAisleMaster,
+    SkuLocationOverride,
     PutawayLog,
     MasterDataIssue,
     AuditLog,
@@ -216,6 +217,112 @@ def get_wait_putaway_tasks(db: Session):
     )
 
 
+def _normalize_putaway_type(value: str) -> str:
+    value = (value or "").strip().upper()
+    if value in ["CHAN", "CHẴN", "CASE", "EVEN", "CHẵn".upper()]:
+        return "CHAN"
+    if value in ["LE", "LẺ", "ODD", "EACH"]:
+        return "LE"
+    return value
+
+
+def _putaway_type_label(code: str) -> str:
+    code = _normalize_putaway_type(code)
+    if code == "CHAN":
+        return "CHẴN"
+    if code == "LE":
+        return "LẺ"
+    return "CHƯA XÁC ĐỊNH"
+
+
+def _location_aisle(location_id: str) -> str:
+    location_id = (location_id or "").strip().upper()
+    if not location_id:
+        return ""
+    return location_id.split("-")[0].split("_")[0].split(".")[0]
+
+
+def _detect_putaway_type(qty: int, pcb: int, sku_type: str = "") -> str:
+    sku_type_norm = _normalize_putaway_type(sku_type)
+    if sku_type_norm in ["CHAN", "LE"]:
+        return sku_type_norm
+
+    pcb = int(pcb or 1)
+    qty = int(qty or 0)
+
+    if pcb <= 1:
+        return "LE"
+
+    if qty > 0 and qty % pcb == 0:
+        return "CHAN"
+
+    return "LE"
+
+
+def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name: str, category: str, putaway_type: str):
+    putaway_type = _normalize_putaway_type(putaway_type)
+
+    override_rows = (
+        db.query(SkuLocationOverride)
+        .filter(
+            SkuLocationOverride.sku == sku,
+            SkuLocationOverride.active == True,
+        )
+        .order_by(SkuLocationOverride.priority.asc(), SkuLocationOverride.aisle.asc())
+        .all()
+    )
+
+    if override_rows:
+        return {
+            "source": "SKU_OVERRIDE",
+            "source_label": "Rule SKU đặc biệt",
+            "rows": [
+                {
+                    "zone": "SKU_OVERRIDE",
+                    "aisle": x.aisle,
+                    "priority": x.priority,
+                    "note": x.reason or "SKU được chỉ định dãy riêng",
+                    "putaway_type": _putaway_type_label(x.putaway_type or putaway_type),
+                    "is_override": True,
+                }
+                for x in override_rows
+            ],
+        }
+
+    q = (
+        db.query(CategoryAisleMaster)
+        .filter(
+            CategoryAisleMaster.category == category,
+            CategoryAisleMaster.active == True,
+        )
+    )
+
+    if putaway_type:
+        q = q.filter(
+            (CategoryAisleMaster.putaway_type == putaway_type)
+            | (CategoryAisleMaster.putaway_type == "")
+            | (CategoryAisleMaster.putaway_type == None)
+        )
+
+    category_rows = q.order_by(CategoryAisleMaster.priority.asc(), CategoryAisleMaster.aisle.asc()).all()
+
+    return {
+        "source": "CATEGORY_RULE" if category_rows else "NO_RULE",
+        "source_label": "Rule ngành hàng" if category_rows else "Chưa có rule gợi ý",
+        "rows": [
+            {
+                "zone": x.zone,
+                "aisle": x.aisle,
+                "priority": x.priority,
+                "note": x.note or "Dãy gợi ý theo ngành hàng",
+                "putaway_type": _putaway_type_label(x.putaway_type or putaway_type),
+                "is_override": False,
+            }
+            for x in category_rows
+        ],
+    }
+
+
 def get_putaway_by_pallet(db: Session, pallet_id: str):
     pallet_id = pallet_id.strip().upper()
 
@@ -237,13 +344,22 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         .first()
     )
 
-    category = product.category if product else ""
+    sku_master = db.query(SkuMaster).filter(SkuMaster.sku == queue.sku).first()
+    pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
+    sku_type = sku_master.sku_type if sku_master else ""
 
-    suggested_aisles = (
-        db.query(CategoryAisleMaster)
-        .filter(CategoryAisleMaster.category == category)
-        .order_by(CategoryAisleMaster.priority.asc())
-        .all()
+    product_name = product.product_name if product else ""
+    category = product.category if product else ""
+    putaway_type = _detect_putaway_type(queue.qty_gr, pcb, sku_type)
+    putaway_type_label = _putaway_type_label(putaway_type)
+
+    suggestions = _build_putaway_suggestions(
+        db=db,
+        sku=queue.sku,
+        barcode=queue.barcode,
+        product_name=product_name,
+        category=category,
+        putaway_type=putaway_type,
     )
 
     return {
@@ -252,22 +368,22 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         "pallet_id": queue.pallet_id,
         "sku": queue.sku,
         "barcode": queue.barcode,
+        "product_name": product_name,
         "category": category,
+        "pcb": int(pcb or 1),
+        "sku_type": sku_type or "",
+        "putaway_type": putaway_type,
+        "putaway_type_label": putaway_type_label,
+        "putaway_type_color": "success" if putaway_type == "CHAN" else "warning",
         "qty_gr": queue.qty_gr,
         "qty_putaway": queue.qty_putaway,
         "qty_remain_putaway": queue.qty_remain_putaway,
         "flow_status": queue.flow_status,
-        "suggested_aisles": [
-            {
-                "zone": x.zone,
-                "aisle": x.aisle,
-                "priority": x.priority,
-                "note": x.note,
-            }
-            for x in suggested_aisles
-        ],
+        "suggestion_source": suggestions["source"],
+        "suggestion_source_label": suggestions["source_label"],
+        "suggested_aisles": suggestions["rows"],
+        "suggested_locations": suggestions["rows"],
     }
-
 
 def confirm_putaway(
     db: Session,
@@ -277,6 +393,7 @@ def confirm_putaway(
     user_name: str,
 ):
     location_id = location_id.strip().upper()
+    scanned_aisle = _location_aisle(location_id)
 
     if not location_id:
         raise ValueError("Vui lòng scan vị trí")
@@ -308,6 +425,12 @@ def confirm_putaway(
 
         is_temp_location = False
         location_status = "ACTIVE"
+        location_warning = ""
+
+        task_info = get_putaway_by_pallet(db, queue.pallet_id)
+        suggested_aisles = [str(x.get("aisle", "")).upper() for x in task_info.get("suggested_aisles", []) if x.get("aisle")]
+        if suggested_aisles and scanned_aisle and scanned_aisle not in suggested_aisles:
+            location_warning = f"Vị trí ngoài dãy gợi ý. Dãy gợi ý: {', '.join(suggested_aisles)}"
 
         if location:
             location_status = location.status or "ACTIVE"
@@ -406,6 +529,9 @@ def confirm_putaway(
             "flow_status": queue.flow_status,
             "location_status": location_status,
             "is_temp_location": is_temp_location,
+            "location_warning": location_warning,
+            "scanned_aisle": scanned_aisle,
+            "suggested_aisles": suggested_aisles,
         }
 
     except Exception:
