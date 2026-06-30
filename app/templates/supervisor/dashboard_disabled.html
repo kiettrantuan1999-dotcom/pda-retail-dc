@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-3">
+  <h4 class="fw-bold mb-0">📊 Dashboard KPI</h4>
+  <div class="text-muted">Đã tắt tự động tải realtime để tăng tốc độ app vận hành.</div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="alert alert-warning mb-3">
+      Dashboard không còn tự query dữ liệu khi mở trang. Việc này giảm tải database/Railway, đặc biệt khi nhiều PDA thao tác cùng lúc.
+    </div>
+
+    <div class="d-grid gap-2">
+      <a href="/supervisor/dashboard?load=1" class="btn btn-primary btn-lg">
+        Tải Dashboard khi cần xem
+      </a>
+      <a href="/" class="btn btn-outline-secondary">
+        ⬅ Về Home
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body small text-muted">
+    Gợi ý vận hành: các màn hình PDA như Nhận hàng, Cất hàng, Phiếu lấy hàng, Đóng hàng và Tập kết không nên phụ thuộc dashboard realtime. Dashboard chỉ dùng cho Supervisor khi cần kiểm tra tổng quan.
+  </div>
+</div>
+
+{% endblock %}

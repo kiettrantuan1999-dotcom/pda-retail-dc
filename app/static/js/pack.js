@@ -203,6 +203,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+
+  document.querySelectorAll(".load-pending-pack").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const pickingNo = (btn.getAttribute("data-picking-no") || "").trim().toUpperCase();
+      if (!pickingNo) return;
+      doInput.value = pickingNo;
+      loadPack();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
   if (loadPackBtn) {
     loadPackBtn.addEventListener("click", loadPack);
   }

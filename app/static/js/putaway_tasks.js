@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".open-task-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
         const pallet = btn.getAttribute("data-pallet");
-        window.location.href = "/putaway/scan?pallet_id=" + encodeURIComponent(pallet);
+        window.location.href = "/putaway/" + encodeURIComponent(pallet);
       });
     });
   }

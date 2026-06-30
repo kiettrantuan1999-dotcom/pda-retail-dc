@@ -387,6 +387,49 @@ def danh_sach_phieu_lay_hang(db: Session, print_status: str | None = None):
     return result
 
 
+
+def lay_danh_sach_id_in_hang_loat(db: Session, print_status: str | None = "WAIT_PRINT", limit: int = 80):
+    """Lấy danh sách picking_id để in hàng loạt. Giới hạn để tránh mở quá nhiều trang A4 trong 1 request."""
+    cols = _table_columns(db, "picking_header")
+    where = []
+    params = {"limit": int(limit or 80)}
+
+    if print_status and "print_status" in cols:
+        where.append("h.print_status = :print_status")
+        params["print_status"] = print_status
+
+    where_sql = "WHERE " + " AND ".join(where) if where else ""
+    sql = text(f"""
+        SELECT h.picking_id
+        FROM picking_header h
+        {where_sql}
+        ORDER BY h.created_at ASC NULLS LAST, h.picking_id ASC
+        LIMIT :limit
+    """)
+    return [int(r[0]) for r in db.execute(sql, params).fetchall() if r[0] is not None]
+
+
+def du_lieu_in_hang_loat(db: Session, picking_ids: list[int], user_name: str = "developer"):
+    """Chuẩn bị dữ liệu in nhiều phiếu trong một tab."""
+    pages = []
+    for picking_id in picking_ids:
+        try:
+            header, details, total_label_qty = chi_tiet_phieu_lay_hang_print_safe(db, int(picking_id))
+            pages.append({
+                "header": header,
+                "details": details,
+                "pick_lines": tong_hop_dong_pick(details),
+                "stats": thong_ke_phieu(details),
+                "total_label_qty": total_label_qty,
+            })
+            try:
+                danh_dau_da_in_safe(db, int(picking_id), user_name)
+            except Exception as exc:
+                print("WARN bulk print update failed:", picking_id, repr(exc))
+        except Exception as exc:
+            print("WARN bulk print skip:", picking_id, repr(exc))
+    return pages
+
 def chi_tiet_phieu_lay_hang(db: Session, picking_id: int):
     header = (
         db.query(PickingHeader)

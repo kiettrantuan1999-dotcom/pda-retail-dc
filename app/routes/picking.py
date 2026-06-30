@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request, Query
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,30 @@ def phieu_da_in(request: Request, db: Session = Depends(get_db)):
         },
     )
 
+
+
+@router.get("/print-bulk", response_class=HTMLResponse)
+def in_hang_loat_phieu_lay_hang(
+    request: Request,
+    print_status: str = Query("WAIT_PRINT"),
+    limit: int = Query(80),
+    db: Session = Depends(get_db),
+):
+    # In hàng loạt theo trạng thái. Mặc định chỉ in phiếu chờ in.
+    limit = max(1, min(int(limit or 80), 200))
+    picking_ids = svc.lay_danh_sach_id_in_hang_loat(db, print_status=print_status, limit=limit)
+    pages = svc.du_lieu_in_hang_loat(db, picking_ids, username(request))
+
+    return templates.TemplateResponse(
+        "picking/print_bulk.html",
+        {
+            "request": request,
+            "pages": pages,
+            "print_time": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "print_status": print_status,
+            "limit": limit,
+        },
+    )
 
 @router.get("/{picking_id}", response_class=HTMLResponse)
 def chi_tiet_phieu(

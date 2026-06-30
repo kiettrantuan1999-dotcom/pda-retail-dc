@@ -3,7 +3,7 @@
 
 <div class="mb-3">
   <h4 class="fw-bold mb-0">📍 Cất hàng</h4>
-  <div class="text-muted">Danh sách pallet chờ cất vào vị trí</div>
+  <div class="text-muted">Danh sách PA/Pallet đang chờ cất vào vị trí</div>
 </div>
 
 <div class="mb-3">
@@ -27,7 +27,7 @@
         <div class="d-flex justify-content-between align-items-start">
           <div>
             <div><b>PO:</b> {{ t.po_no }}</div>
-            <div><b>Pallet:</b> {{ t.pallet_id }}</div>
+            <div><b>PA/Pallet:</b> {{ t.pallet_id }}</div>
             <div><b>SKU:</b> {{ t.sku }}</div>
             <div><b>Barcode:</b> {{ t.barcode }}</div>
           </div>
@@ -49,7 +49,7 @@
           </div>
         </div>
 
-        <a href="/putaway/{{ t.queue_id }}" class="btn btn-primary btn-lg w-100 mt-3">
+        <a href="/putaway/{{ t.pallet_id }}" class="btn btn-primary btn-lg w-100 mt-3">
           Bắt đầu cất hàng
         </a>
 

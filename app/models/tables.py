@@ -449,7 +449,7 @@ class PackLog(Base):
     pack_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     picking_no: Mapped[str] = mapped_column(String(120), index=True)
-    do_no: Mapped[str] = mapped_column(String(100), index=True)
+    do_no: Mapped[str] = mapped_column(Text, index=True)
     store_id: Mapped[str] = mapped_column(String(100), index=True)
     pack_type: Mapped[str] = mapped_column(String(50), index=True)
 
@@ -459,7 +459,7 @@ class PackLog(Base):
 
     action: Mapped[str] = mapped_column(String(100), default="CONFIRM_PACK")
     user_name: Mapped[str] = mapped_column(String(100), default="")
-    device_name: Mapped[str] = mapped_column(String(255), default="")
+    device_name: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

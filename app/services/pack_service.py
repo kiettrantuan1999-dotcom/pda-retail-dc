@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.models.tables import (
     PickingHeader,
@@ -63,6 +64,92 @@ def _unique_do_nos(details) -> list[str]:
         seen.add(do_no)
     return values
 
+
+
+def _pack_status_badge(status: str) -> str:
+    value = (status or "WAIT").upper()
+    if value == "DONE":
+        return "Đã đóng"
+    if value == "PARTIAL":
+        return "Đang đóng"
+    return "Chờ đóng"
+
+
+def list_wait_pack_tasks(db: Session, limit: int = 100):
+    """
+    Danh sách phiếu chờ đóng hàng cho màn hình Pack.
+
+    Sprint 46: tối ưu tốc độ bằng 1 query aggregate thay vì N+1 query
+    (trước đây mỗi picking header lại query picking_detail một lần).
+    """
+    limit = max(1, min(int(limit or 100), 300))
+
+    sql = text("""
+        WITH confirmed AS (
+            SELECT DISTINCT picking_no
+            FROM pack_log
+            WHERE action = 'CONFIRM_PACK'
+        ),
+        detail_agg AS (
+            SELECT
+                picking_id,
+                COUNT(*) AS sku_line_count,
+                COALESCE(SUM(qty_pick), 0) AS total_qty,
+                COUNT(DISTINCT NULLIF(do_no, '')) AS total_do
+            FROM picking_detail
+            GROUP BY picking_id
+        )
+        SELECT
+            h.picking_id,
+            h.picking_no,
+            h.store_id,
+            h.store_name,
+            h.pick_type,
+            COALESCE(h.pack_status, 'WAIT') AS pack_status,
+            COALESCE(h.trip_no, '') AS trip_no,
+            COALESCE(h.wave, '') AS wave,
+            COALESCE(h.khung_gio, '') AS khung_gio,
+            COALESCE(h.loai_giao, '') AS loai_giao,
+            COALESCE(a.total_do, 0) AS total_do,
+            COALESCE(a.sku_line_count, 0) AS sku_line_count,
+            COALESCE(a.total_qty, 0) AS total_qty,
+            h.created_at
+        FROM picking_header h
+        LEFT JOIN confirmed c ON c.picking_no = h.picking_no
+        LEFT JOIN detail_agg a ON a.picking_id = h.picking_id
+        WHERE COALESCE(h.pack_status, 'WAIT') <> 'DONE'
+          AND c.picking_no IS NULL
+        ORDER BY h.created_at DESC NULLS LAST, h.picking_id DESC
+        LIMIT :limit
+    """)
+
+    rows = []
+    for r in db.execute(sql, {"limit": limit}).mappings().all():
+        pick_type = r.get("pick_type") or ""
+        pack_status = r.get("pack_status") or "WAIT"
+        total_do = int(r.get("total_do") or 0)
+        # picking_detail có thể có STORE_PICKING marker trong dữ liệu cũ, ít nhất hiển thị 1 DO nếu có line.
+        if total_do <= 0 and int(r.get("sku_line_count") or 0) > 0:
+            total_do = 1
+        rows.append({
+            "picking_id": r.get("picking_id"),
+            "picking_no": r.get("picking_no") or "",
+            "store_id": r.get("store_id") or "",
+            "store_name": r.get("store_name") or "",
+            "pack_type": pick_type,
+            "pack_type_name": _pack_type_label(pick_type),
+            "pack_status": pack_status,
+            "pack_status_name": _pack_status_badge(pack_status),
+            "trip_no": r.get("trip_no") or "",
+            "wave": r.get("wave") or "",
+            "khung_gio": r.get("khung_gio") or "",
+            "loai_giao": r.get("loai_giao") or "",
+            "total_do": total_do,
+            "sku_line_count": int(r.get("sku_line_count") or 0),
+            "total_qty": int(r.get("total_qty") or 0),
+            "created_at": r.get("created_at"),
+        })
+    return rows
 
 def get_pack_by_do(db: Session, do_no: str):
     scan_code = _clean_scan_code(do_no)

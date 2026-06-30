@@ -63,13 +63,13 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      const queueId = data.data.queue_id;
-      if (!queueId) {
+      const palletId = (data.data && data.data.pallet_id ? data.data.pallet_id : pallet).trim().toUpperCase();
+      if (!palletId) {
         showMessage("alert-danger", "PA này chưa có nhiệm vụ cất hàng.");
         return;
       }
 
-      window.location.href = "/putaway/" + queueId;
+      window.location.href = "/putaway/" + encodeURIComponent(palletId);
     } catch (err) {
       showMessage("alert-danger", err.message || "Lỗi kết nối server.");
     }

@@ -25,18 +25,40 @@ def product_by_barcode(db: Session, barcode: str):
     return db.query(ProductMaster).filter(ProductMaster.barcode == barcode).first()
 
 
-def get_product_scan_info(db: Session, barcode: str):
-    barcode = barcode.strip()
 
-    if not barcode:
-        raise ValueError("Vui lòng scan barcode sản phẩm")
+def _unknown_sku_from_barcode(barcode: str) -> str:
+    clean = str(barcode or "").strip()
+    return (f"UNKNOWN-{clean}" if clean else "UNKNOWN-BARCODE")[:100]
 
+
+def _product_payload_from_master(db: Session, barcode: str):
+    """Lấy thông tin sản phẩm theo barcode.
+
+    Rule vận hành:
+    - Chẵn/lẻ lấy theo master data, không suy luận bằng SL % PCB.
+    - Barcode chưa có master vẫn được GR và Put Away vào vị trí thực tế.
+    """
     product = product_by_barcode(db, barcode)
+
     if not product:
-        raise ValueError("Không tìm thấy mã hàng trong danh mục sản phẩm")
+        return {
+            "sku": _unknown_sku_from_barcode(barcode),
+            "barcode": barcode,
+            "product_name": "Hàng chưa có master",
+            "uom": "EA",
+            "category": "CHUA_CO_MASTER",
+            "pcb": 1,
+            "sku_type": "UNKNOWN",
+            "putaway_type": "UNKNOWN",
+            "putaway_type_label": "CHƯA CÓ MASTER",
+            "is_unknown_master": True,
+            "warning": "Barcode chưa có trong Product Master. Hệ thống vẫn cho GR/Put Away vào vị trí thực tế; vui lòng bổ sung master sau.",
+        }
 
     sku_master = db.query(SkuMaster).filter(SkuMaster.sku == product.sku).first()
-    pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
+    pcb = int((sku_master.pcb if sku_master and sku_master.pcb else 1) or 1)
+    sku_type = sku_master.sku_type if sku_master else "UNKNOWN"
+    putaway_type = _putaway_type_from_master(sku_type)
 
     return {
         "sku": product.sku,
@@ -44,9 +66,22 @@ def get_product_scan_info(db: Session, barcode: str):
         "product_name": product.product_name or "",
         "uom": product.uom or "EA",
         "category": product.category or "",
-        "pcb": int(pcb or 1),
+        "pcb": pcb,
+        "sku_type": sku_type or "UNKNOWN",
+        "putaway_type": putaway_type,
+        "putaway_type_label": _putaway_type_label(putaway_type),
+        "is_unknown_master": False,
+        "warning": "" if putaway_type != "UNKNOWN" else "SKU chưa có loại chẵn/lẻ trong Sku Master. Hệ thống không tự suy luận theo số lượng.",
     }
 
+
+def get_product_scan_info(db: Session, barcode: str):
+    barcode = barcode.strip()
+
+    if not barcode:
+        raise ValueError("Vui lòng scan barcode sản phẩm")
+
+    return _product_payload_from_master(db, barcode)
 
 def confirm_gr(
     db: Session,
@@ -90,12 +125,11 @@ def confirm_gr(
     if qty_promo < 0:
         raise ValueError("Số lượng khuyến mãi không được âm")
 
-    product = product_by_barcode(db, barcode)
-    if not product:
-        raise ValueError("Không tìm thấy mã hàng trong danh mục sản phẩm")
-
-    sku_master = db.query(SkuMaster).filter(SkuMaster.sku == product.sku).first()
-    master_pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
+    product_info = _product_payload_from_master(db, barcode)
+    sku = product_info["sku"]
+    product_name = product_info.get("product_name") or ""
+    is_unknown_master = bool(product_info.get("is_unknown_master"))
+    master_pcb = int(product_info.get("pcb") or 1)
     pcb = int(pcb or master_pcb or 1)
 
     if pcb <= 0:
@@ -113,6 +147,19 @@ def confirm_gr(
         raise ValueError("Tổng số lượng nhập phải lớn hơn 0")
 
     now = datetime.utcnow()
+
+    if is_unknown_master:
+        db.add(MasterDataIssue(
+            issue_type="BARCODE_NOT_IN_PRODUCT_MASTER",
+            sku=sku,
+            barcode=barcode,
+            pallet_id=pallet_id,
+            location_id="",
+            source_module="GR",
+            source_ref_id=po_no,
+            created_by=user_name,
+            note="GR barcode chưa có trong product_master; hệ thống tạo SKU tạm để không chặn vận hành.",
+        ))
 
     # 1 PA chỉ thuộc 1 PO. Nếu scan PA đã thuộc PO khác thì chặn để tránh lẫn chứng từ.
     pallet_header = db.query(PalletHeader).filter(PalletHeader.pallet_id == pallet_id).first()
@@ -142,7 +189,7 @@ def confirm_gr(
         .filter(
             InboundQueue.po_no == po_no,
             InboundQueue.pallet_id == pallet_id,
-            InboundQueue.sku == product.sku,
+            InboundQueue.sku == sku,
             InboundQueue.barcode == barcode,
         )
         .first()
@@ -163,7 +210,7 @@ def confirm_gr(
             po_no=po_no,
             pallet_id=pallet_id,
             barcode=barcode,
-            sku=product.sku,
+            sku=sku,
             qty_gr=qty_total,
             qty_putaway=0,
             qty_remain_putaway=qty_total,
@@ -176,7 +223,7 @@ def confirm_gr(
         db.query(PalletDetail)
         .filter(
             PalletDetail.pallet_id == pallet_id,
-            PalletDetail.sku == product.sku,
+            PalletDetail.sku == sku,
             PalletDetail.barcode == barcode,
         )
         .first()
@@ -192,7 +239,7 @@ def confirm_gr(
             pallet_id=pallet_id,
             po_no=po_no,
             barcode=barcode,
-            sku=product.sku,
+            sku=sku,
             qty_gr=qty_total,
             qty_putaway=0,
             qty_remain_putaway=qty_total,
@@ -206,7 +253,7 @@ def confirm_gr(
         po_no=po_no,
         pallet_id=pallet_id,
         barcode=barcode,
-        sku=product.sku,
+        sku=sku,
         qty_gr=qty_total,
         user_name=user_name,
     )
@@ -217,7 +264,7 @@ def confirm_gr(
         reference_no=po_no,
         pallet_id=pallet_id,
         location_id="",
-        sku=product.sku,
+        sku=sku,
         barcode=barcode,
         qty_before=old_qty,
         qty_after=old_qty + qty_total,
@@ -248,7 +295,11 @@ def confirm_gr(
         "loose_qty": loose_qty,
         "pcb": pcb,
         "qty_promo": qty_promo,
-        "product_name": product.product_name or "",
+        "product_name": product_name,
+        "putaway_type": product_info.get("putaway_type") or "UNKNOWN",
+        "putaway_type_label": product_info.get("putaway_type_label") or "CHƯA XÁC ĐỊNH",
+        "is_unknown_master": is_unknown_master,
+        "warning": product_info.get("warning") or "",
         "qty_total": qty_total,
         "line_total_after": queue.qty_gr,
         "pallet_total_sku": pallet_summary["total_sku"],
@@ -557,7 +608,16 @@ def _putaway_type_label(code: str) -> str:
         return "CHẴN"
     if code == "LE":
         return "LẺ"
+    if code == "UNKNOWN":
+        return "CHƯA CÓ MASTER"
     return "CHƯA XÁC ĐỊNH"
+
+
+def _putaway_type_from_master(sku_type: str) -> str:
+    normalized = _normalize_putaway_type(sku_type)
+    if normalized in ["CHAN", "LE"]:
+        return normalized
+    return "UNKNOWN"
 
 
 def _location_aisle(location_id: str) -> str:
@@ -568,21 +628,8 @@ def _location_aisle(location_id: str) -> str:
 
 
 def _detect_putaway_type(qty: int, pcb: int, sku_type: str = "") -> str:
-    sku_type_norm = _normalize_putaway_type(sku_type)
-    if sku_type_norm in ["CHAN", "LE"]:
-        return sku_type_norm
-
-    pcb = int(pcb or 1)
-    qty = int(qty or 0)
-
-    if pcb <= 1:
-        return "LE"
-
-    if qty > 0 and qty % pcb == 0:
-        return "CHAN"
-
-    return "LE"
-
+    # Backward-compatible wrapper: không tự đoán chẵn/lẻ theo SL % PCB.
+    return _putaway_type_from_master(sku_type)
 
 def _location_load_score(db: Session, location_id: str) -> int:
     """Ước lượng độ đầy theo số dòng tồn tại vị trí. MVP chưa tracking pallet theo location."""
@@ -597,33 +644,41 @@ def _location_load_score(db: Session, location_id: str) -> int:
 
 
 def _best_locations_for_aisles(db: Session, aisles: list[str], limit: int = 8):
-    aisles = [str(x or "").strip().upper() for x in aisles if str(x or "").strip()]
-    if not aisles:
+    """Trả vị trí gợi ý theo dãy.
+
+    Lưu ý: bảng location_master hiện tại không có cột aisle / putaway_index / travel_sequence.
+    Vì vậy không query LocationMaster.aisle nữa, mà derive aisle từ location_id.
+    Ví dụ: A01-01-01 -> aisle = A01.
+    """
+    aisle_set = {str(x or "").strip().upper() for x in aisles if str(x or "").strip()}
+    if not aisle_set:
         return []
 
     rows = (
         db.query(LocationMaster)
-        .filter(
-            LocationMaster.aisle.in_(aisles),
-            LocationMaster.status == "ACTIVE",
-        )
+        .filter(LocationMaster.status == "ACTIVE")
         .order_by(
-            LocationMaster.putaway_index.asc(),
             LocationMaster.pick_index.asc(),
             LocationMaster.location_id.asc(),
         )
-        .limit(limit * 3)
+        .limit(max(limit * 50, 200))
         .all()
     )
 
     result = []
     for loc in rows:
+        loc_aisle = _location_aisle(loc.location_id)
+        if loc_aisle not in aisle_set:
+            continue
+
         load_score = _location_load_score(db, loc.location_id)
         max_capacity = int(loc.max_capacity or 1)
         is_full = load_score >= max_capacity if max_capacity > 0 else False
+        pick_index = int(loc.pick_index or 999999)
+
         result.append({
             "location_id": loc.location_id,
-            "aisle": loc.aisle or _location_aisle(loc.location_id),
+            "aisle": loc_aisle,
             "zone": loc.zone or "",
             "location_type": loc.location_type or "",
             "status": loc.status or "ACTIVE",
@@ -631,15 +686,13 @@ def _best_locations_for_aisles(db: Session, aisles: list[str], limit: int = 8):
             "current_load": load_score,
             "available_capacity": max(max_capacity - load_score, 0),
             "is_full": is_full,
-            "pick_index": int(loc.pick_index or 999999),
-            "putaway_index": int(loc.putaway_index or loc.pick_index or 999999),
-            "travel_sequence": int(loc.travel_sequence or loc.pick_index or 999999),
+            "pick_index": pick_index,
+            "putaway_index": pick_index,
+            "travel_sequence": pick_index,
         })
 
-    # Ưu tiên vị trí chưa đầy, sau đó theo putaway index.
     result.sort(key=lambda x: (x["is_full"], x["putaway_index"], x["location_id"]))
     return result[:limit]
-
 
 def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name: str, category: str, putaway_type: str):
     putaway_type = _normalize_putaway_type(putaway_type)
@@ -738,9 +791,9 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         sku_master = db.query(SkuMaster).filter(SkuMaster.sku == q.sku).first()
         pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
         sku_type = sku_master.sku_type if sku_master else ""
-        product_name = product.product_name if product else ""
-        category = product.category if product else ""
-        putaway_type = _detect_putaway_type(q.qty_gr, pcb, sku_type)
+        product_name = product.product_name if product else "Hàng chưa có master"
+        category = product.category if product else "CHUA_CO_MASTER"
+        putaway_type = _putaway_type_from_master(sku_type)
 
         detail_lines.append({
             "queue_id": q.queue_id,
@@ -764,9 +817,9 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
     dominant_sku_master = db.query(SkuMaster).filter(SkuMaster.sku == dominant_queue.sku).first()
     dominant_pcb = dominant_sku_master.pcb if dominant_sku_master and dominant_sku_master.pcb else 1
     dominant_sku_type = dominant_sku_master.sku_type if dominant_sku_master else ""
-    dominant_product_name = dominant_product.product_name if dominant_product else ""
-    dominant_category = dominant_product.category if dominant_product else ""
-    dominant_putaway_type = _detect_putaway_type(dominant_queue.qty_gr, dominant_pcb, dominant_sku_type)
+    dominant_product_name = dominant_product.product_name if dominant_product else "Hàng chưa có master"
+    dominant_category = dominant_product.category if dominant_product else "CHUA_CO_MASTER"
+    dominant_putaway_type = _putaway_type_from_master(dominant_sku_type)
 
     suggestions = _build_putaway_suggestions(
         db=db,
@@ -789,7 +842,7 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         "sku_type": dominant_sku_type or "",
         "putaway_type": dominant_putaway_type,
         "putaway_type_label": _putaway_type_label(dominant_putaway_type),
-        "putaway_type_color": "success" if dominant_putaway_type == "CHAN" else "warning",
+        "putaway_type_color": "success" if dominant_putaway_type == "CHAN" else ("warning" if dominant_putaway_type == "LE" else "secondary"),
         "qty_gr": total_qty_gr,
         "qty_putaway": total_qty_putaway,
         "qty_remain_putaway": total_qty_remain,
@@ -851,8 +904,8 @@ def confirm_putaway(
 
         task_info = get_putaway_by_pallet(db, first_queue.pallet_id)
         suggested_aisles = [str(x.get("aisle", "")).upper() for x in task_info.get("suggested_aisles", []) if x.get("aisle")]
-        if location and getattr(location, "aisle", ""):
-            scanned_aisle = str(location.aisle or scanned_aisle).upper()
+        if location:
+            scanned_aisle = _location_aisle(location.location_id) or scanned_aisle
         if suggested_aisles and scanned_aisle and scanned_aisle not in suggested_aisles:
             location_warning = f"Vị trí ngoài dãy gợi ý. Dãy gợi ý: {', '.join(suggested_aisles)}"
 

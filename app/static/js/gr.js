@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const productSku = document.getElementById("productSku");
   const productBarcode = document.getElementById("productBarcode");
   const masterPcb = document.getElementById("masterPcb");
+  const grPutawayType = document.getElementById("grPutawayType");
+  const productWarning = document.getElementById("productWarning");
 
   const resultBox = document.getElementById("resultBox");
   const resultTitle = document.getElementById("resultTitle");
@@ -164,6 +166,11 @@ document.addEventListener("DOMContentLoaded", function () {
     productSku.innerText = "-";
     productBarcode.innerText = "-";
     masterPcb.innerText = "-";
+    if (grPutawayType) grPutawayType.innerText = "-";
+    if (productWarning) {
+      productWarning.innerText = "";
+      productWarning.classList.add("d-none");
+    }
     pcbInput.value = "1";
     recalcQtyPreview();
   }
@@ -182,16 +189,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (!data.ok) {
         clearProductInfo();
-        showError(data.error || "Không tìm thấy barcode trong master data");
+        showError(data.error || "Không tải được thông tin barcode");
         return;
       }
 
       currentProduct = data.data;
       productInfoBox.classList.remove("d-none");
+      productInfoBox.className = currentProduct.is_unknown_master
+        ? "alert alert-warning py-2 mb-3"
+        : "alert alert-secondary py-2 mb-3";
       productName.innerText = currentProduct.product_name || "Không có tên sản phẩm";
       productSku.innerText = currentProduct.sku || "-";
       productBarcode.innerText = currentProduct.barcode || barcode;
       masterPcb.innerText = String(currentProduct.pcb || 1);
+      if (grPutawayType) grPutawayType.innerText = currentProduct.putaway_type_label || "-";
+      if (productWarning) {
+        const warning = currentProduct.warning || "";
+        productWarning.innerText = warning;
+        productWarning.classList.toggle("d-none", !warning);
+      }
       pcbInput.value = String(currentProduct.pcb || 1);
       recalcQtyPreview();
     } catch (err) {

@@ -8,6 +8,57 @@
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h5 class="fw-bold mb-0">⏳ Phiếu chờ đóng hàng</h5>
+        <div class="text-muted small">DO đã upload và đã tạo Picking List nhưng chưa có log đóng hàng</div>
+      </div>
+      <span class="badge bg-warning text-dark">{{ tasks|length }} pending</span>
+    </div>
+
+    {% if tasks|length == 0 %}
+      <div class="alert alert-success mb-0">✅ Không có phiếu nào đang chờ đóng hàng.</div>
+    {% else %}
+      <div class="row g-2">
+        {% for t in tasks %}
+        <div class="col-12">
+          <div class="border rounded p-2 bg-light">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-bold">{{ t.picking_no }}</div>
+                <div class="small"><b>Cửa hàng:</b> {{ t.store_id }} - {{ t.store_name }}</div>
+                <div class="small text-muted">
+                  <b>{{ t.pack_type_name }}</b>
+                  · DO: {{ t.total_do }}
+                  · SKU: {{ t.sku_line_count }}
+                  · SL: {{ t.total_qty }}
+                </div>
+                <div class="small text-muted">
+                  Chuyến: {{ t.trip_no or '-' }} · Wave: {{ t.wave or '-' }} · Khung giờ: {{ t.khung_gio or '-' }} · Loại giao: {{ t.loai_giao or '-' }}
+                </div>
+              </div>
+
+              <div class="text-end">
+                <span class="badge bg-warning text-dark">🟡 {{ t.pack_status_name }}</span>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm mt-2 w-100 load-pending-pack"
+                  data-picking-no="{{ t.picking_no }}"
+                >
+                  Đóng hàng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
 
     <label class="form-label fw-bold">Mã phiếu lấy hàng</label>
     <div class="input-group mb-2">

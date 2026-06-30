@@ -23,6 +23,19 @@ async def supervisor_dashboard(
         if not user:
             return RedirectResponse(url="/login", status_code=302)
 
+        # Sprint 46: tắt dashboard realtime mặc định để tăng tốc app.
+        # Chỉ load dữ liệu nặng khi user chủ động bấm "Tải dashboard".
+        load = (request.query_params.get("load") or "").strip()
+        if load != "1":
+            return templates.TemplateResponse(
+                "supervisor/dashboard_disabled.html",
+                {
+                    "request": request,
+                    "user": user,
+                    "role_label": user.get("role", ""),
+                },
+            )
+
         bang_dieu_khien = lay_du_lieu_bang_dieu_khien(db)
 
         return templates.TemplateResponse(
@@ -32,6 +45,7 @@ async def supervisor_dashboard(
                 "user": user,
                 "role_label": user.get("role", ""),
                 "bang_dieu_khien": bang_dieu_khien,
+                "dashboard": bang_dieu_khien,
             },
         )
 

@@ -466,12 +466,50 @@ def lay_du_lieu_bang_dieu_khien(db: Session):
         reverse=True,
     )
 
+    updated_at = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # Alias cho template dashboard cũ để tránh lỗi khi user chủ động tải dashboard.
+    kpi_rows = [
+        {
+            "module": r.get("module", ""),
+            "wait": r.get("dang_cho", 0),
+            "done_today": r.get("hoan_thanh_hom_nay", 0),
+            "note": r.get("ghi_chu", ""),
+        }
+        for r in chi_so_van_hanh
+    ]
+    recent_rows = [
+        {
+            "time": r.get("thoi_gian", ""),
+            "module": r.get("phan_he", ""),
+            "event": r.get("su_kien", ""),
+            "reference": r.get("ma_tham_chieu", ""),
+            "user": r.get("nguoi_dung", ""),
+            "status": r.get("trang_thai", ""),
+        }
+        for r in hoat_dong_gan_day
+    ]
+    error_rows = [
+        {
+            "time": r.get("thoi_gian", ""),
+            "module": r.get("phan_he", ""),
+            "function": r.get("ham", ""),
+            "user": r.get("nguoi_dung", ""),
+            "error": r.get("noi_dung_loi", ""),
+        }
+        for r in theo_doi_loi
+    ]
+
     return {
-        "ngay_gio_cap_nhat": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "ngay_gio_cap_nhat": updated_at,
+        "updated_at": updated_at,
         "suc_khoe_kho": suc_khoe_kho,
         "chi_so_van_hanh": chi_so_van_hanh,
         "hoat_dong_gan_day": hoat_dong_gan_day,
         "theo_doi_loi": theo_doi_loi,
         "cong_viec_ton_lau": cong_viec_ton_lau,
         "nang_suat_nhan_vien": nang_suat_nhan_vien,
+        "kpi_rows": kpi_rows,
+        "recent_rows": recent_rows,
+        "error_rows": error_rows,
     }
