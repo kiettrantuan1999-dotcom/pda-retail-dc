@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h4 class="fw-bold mb-0">🚚 Tập kết hàng</h4>
-        <div class="text-muted">Kiểm số kiện sau đóng hàng và xác nhận hoàn tất trước khi xuất khỏi kho</div>
+        <div class="text-muted">Scan barcode phiếu lấy hàng để kiểm số kiện sau đóng hàng và xác nhận tập kết</div>
     </div>
     <a class="btn btn-outline-secondary" href="/">🏠 Trang chủ</a>
 </div>
@@ -20,18 +20,18 @@
 <div class="card shadow-sm mb-3">
     <div class="card-body">
         <form method="get" action="/staging">
-            <label class="form-label fw-bold">Scan / nhập mã DO</label>
+            <label class="form-label fw-bold">Scan / nhập mã phiếu lấy hàng</label>
             <div class="input-group input-group-lg">
                 <input
                     name="do_no"
                     class="form-control"
                     value="{{ do_no }}"
-                    placeholder="Ví dụ: 7078865709 hoặc 7078865709-C"
+                    placeholder="Ví dụ: 30062026-0000002ACV-C hoặc 30062026-0000002ACV-L"
                     autofocus
                 >
                 <button class="btn btn-primary" type="submit">Tìm</button>
             </div>
-            <div class="form-text">Có thể scan mã DO tổng hoặc mã phiếu đóng hàng chẵn/lẻ.</div>
+            <div class="form-text">Scan barcode trên Picking List. Hệ thống sẽ tự gom cả phiếu chẵn/lẻ của cùng cửa hàng.</div>
         </form>
     </div>
 </div>
@@ -39,7 +39,7 @@
 {% if summary %}
 <div class="card shadow-sm mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <div class="fw-bold">Thông tin DO</div>
+        <div class="fw-bold">Thông tin tập kết theo cửa hàng</div>
         {% if summary.staging_status == "DONE" %}
             <span class="badge bg-success">Đã xác nhận</span>
         {% else %}
@@ -50,9 +50,10 @@
         <div class="row g-2 mb-3">
             <div class="col-12">
                 <div class="p-3 bg-light rounded">
-                    <div class="text-muted small">Mã DO</div>
-                    <div class="fs-4 fw-bold">{{ summary.do_no }}</div>
+                    <div class="text-muted small">Mã phiếu scan / Nhóm tập kết</div>
+                    <div class="fs-4 fw-bold">{{ summary.reference_code }}</div>
                     <div class="small text-muted">{{ summary.store_id }} - {{ summary.store_name }}</div>
+                    <div class="small text-muted">Tổng DO gốc: {{ summary.total_do }}{% if summary.do_no %} | {{ summary.do_no }}{% endif %}</div>
                 </div>
             </div>
 
@@ -85,6 +86,19 @@
                 <div class="p-3 border rounded h-100">
                     <div class="text-muted small">Tổng số lượng</div>
                     <div class="fs-5 fw-bold">{{ summary.total_qty }}</div>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <div class="p-3 border rounded h-100">
+                    <div class="text-muted small">Mã chuyến / Wave</div>
+                    <div class="fw-bold">{{ summary.trip_no or '-' }} / {{ summary.wave or '-' }}</div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="p-3 border rounded h-100">
+                    <div class="text-muted small">Khung giờ / Loại giao</div>
+                    <div class="fw-bold">{{ summary.khung_gio or '-' }} / {{ summary.loai_giao or '-' }}</div>
                 </div>
             </div>
 
@@ -133,14 +147,14 @@
 
         {% if summary.staging_status == "DONE" %}
             <div class="alert alert-success mb-0">
-                DO này đã được xác nhận tập kết bởi
+                Nhóm phiếu này đã được xác nhận tập kết bởi
                 <strong>{{ summary.confirm_user or '-' }}</strong>
                 lúc
                 <strong>{{ summary.confirm_time.strftime('%Y-%m-%d %H:%M:%S') if summary.confirm_time else '-' }}</strong>.
             </div>
         {% else %}
             <form method="post" action="/staging/confirm">
-                <input type="hidden" name="do_no" value="{{ summary.do_no }}">
+                <input type="hidden" name="do_no" value="{{ summary.reference_code }}">
 
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" value="YES" id="physical_check" name="physical_check">
@@ -162,13 +176,15 @@
 {% endif %}
 
 <div class="card shadow-sm">
-    <div class="card-header fw-bold">Danh sách DO đang chờ tập kết</div>
+    <div class="card-header fw-bold">Danh sách cửa hàng đang chờ tập kết</div>
     <div class="table-responsive">
         <table class="table table-sm table-striped align-middle mb-0">
             <thead>
                 <tr>
-                    <th>DO</th>
+                    <th>Mã scan</th>
                     <th>Cửa hàng</th>
+                    <th>Mã chuyến</th>
+                    <th>Wave</th>
                     <th class="text-end">Tổng kiện</th>
                     <th class="text-end">Chẵn</th>
                     <th class="text-end">Lẻ</th>
@@ -178,18 +194,20 @@
             <tbody>
                 {% for r in wait_rows %}
                 <tr>
-                    <td class="fw-bold">{{ r.do_no }}</td>
+                    <td class="fw-bold">{{ r.reference_code }}</td>
                     <td>{{ r.store_id }} - {{ r.store_name }}</td>
+                    <td>{{ r.trip_no or "-" }}</td>
+                    <td>{{ r.wave or "-" }}</td>
                     <td class="text-end">{{ r.total_package }}</td>
                     <td class="text-end">{{ r.even_package }}</td>
                     <td class="text-end">{{ r.odd_package }}</td>
                     <td class="text-end">
-                        <a class="btn btn-sm btn-outline-primary" href="/staging?do_no={{ r.do_no }}">Mở</a>
+                        <a class="btn btn-sm btn-outline-primary" href="/staging?do_no={{ r.reference_code }}">Mở</a>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">Không có DO chờ tập kết.</td>
+                    <td colspan="8" class="text-center text-muted py-4">Không có cửa hàng chờ tập kết.</td>
                 </tr>
                 {% endfor %}
             </tbody>

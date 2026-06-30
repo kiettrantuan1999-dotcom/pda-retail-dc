@@ -307,6 +307,12 @@ def complete_gr_pallet(
     statuses = {(q.flow_status or "").upper() for q in queues}
     if "DONE" in statuses or "PARTIAL" in statuses:
         raise ValueError("PA đã Put Away một phần/toàn bộ, không thể hoàn tất lại")
+    if statuses and statuses.issubset({"WAIT_PUTAWAY"}):
+        raise ValueError("PA này đã được hoàn tất trước đó và đang chờ Put Away")
+
+    invalid_qty_rows = [q for q in queues if int(q.qty_gr or 0) <= 0]
+    if invalid_qty_rows:
+        raise ValueError("Có SKU chưa có số lượng hợp lệ, không thể hoàn tất PA")
 
     now = datetime.utcnow()
     changed = 0
@@ -450,8 +456,8 @@ def update_gr_qty_after_confirm(
         raise ValueError("Không tìm thấy dòng GR cần sửa")
 
     flow_status = (queue.flow_status or "").upper()
-    if flow_status not in ["DRAFT", "WAIT_PUTAWAY"]:
-        raise ValueError("Dòng này đã Put Away, không được sửa GR. Vui lòng dùng Inventory Adjustment.")
+    if flow_status != "DRAFT":
+        raise ValueError("Dòng này đã hoàn tất PA hoặc đã Put Away, không được sửa GR. Vui lòng nhờ quản lý kiểm tra hoặc dùng Inventory Adjustment.")
 
     old_qty = int(queue.qty_gr or 0)
     now = datetime.utcnow()

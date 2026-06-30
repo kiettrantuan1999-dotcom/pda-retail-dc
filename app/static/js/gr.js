@@ -283,7 +283,7 @@ function escapeHtml(value) {
 
     historyBody.innerHTML = rows.map(function (r) {
       const status = String(r.flow_status || "").toUpperCase();
-      const canEdit = status === "DRAFT" || status === "WAIT_PUTAWAY";
+      const canEdit = status === "DRAFT";
       const pcb = Number(r.pcb || 1);
 
       return `

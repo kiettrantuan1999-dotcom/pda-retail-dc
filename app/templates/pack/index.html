@@ -3,18 +3,18 @@
 
 <div class="mb-3">
   <h4 class="fw-bold mb-0">🚚 Đóng hàng</h4>
-  <div class="text-muted">Quét mã phiếu lấy hàng để xác nhận đóng hàng</div>
+  <div class="text-muted">Quét barcode trên phiếu lấy hàng để xác nhận đóng hàng</div>
 </div>
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
 
-    <label class="form-label fw-bold">Mã phiếu</label>
+    <label class="form-label fw-bold">Mã phiếu lấy hàng</label>
     <div class="input-group mb-2">
       <input
           id="do_no"
           class="form-control form-control-lg"
-          placeholder="Ví dụ: 7078865709-C hoặc 7078865709-L"
+          placeholder="Ví dụ: 30062026-0000002ACV-C hoặc 30062026-0000002ACV-L"
           autocomplete="off"
       >
       <button id="scanDoBtn" class="btn btn-dark btn-lg" type="button">📷</button>
@@ -51,7 +51,12 @@
   <div class="card shadow-sm mb-3">
     <div class="card-body">
       <div><b>Mã phiếu:</b> <span id="infoPickingNo"></span></div>
-      <div><b>DO:</b> <span id="infoDoNo"></span></div>
+      <div><b>DO gốc:</b> <span id="infoDoNo"></span></div>
+      <div><b>Tổng DO:</b> <span id="infoTotalDo"></span></div>
+      <div><b>Mã chuyến:</b> <span id="infoTrip"></span></div>
+      <div><b>Wave:</b> <span id="infoWave"></span></div>
+      <div><b>Khung giờ giao:</b> <span id="infoSlot"></span></div>
+      <div><b>Loại giao:</b> <span id="infoDeliveryType"></span></div>
       <div><b>Cửa hàng:</b> <span id="infoStore"></span></div>
       <div><b>Loại phiếu:</b> <span id="infoType"></span></div>
       <div><b>Số SKU:</b> <span id="infoSkuLine"></span></div>
@@ -62,6 +67,15 @@
 
   <div class="card shadow-sm mb-3">
     <div class="card-body">
+      <label class="form-label fw-bold">Người lấy hàng / Picker <span class="text-danger">*</span></label>
+      <input
+        id="picker_name"
+        type="text"
+        class="form-control form-control-lg mb-3"
+        autocomplete="off"
+        placeholder="Nhập tên hoặc mã nhân sự picker"
+      >
+
       <label class="form-label fw-bold">Số kiện đóng thực tế</label>
       <input
         id="actual_package_qty"
@@ -84,10 +98,10 @@
         <table class="table table-bordered table-sm align-middle">
           <thead>
             <tr>
-                <th>SKU</th>
-                <th>Barcode</th>
-                <th>Tên hàng</th>
-                <th>Qty</th>
+                <th style="width: 16%;">SKU</th>
+                <th style="width: 20%;">Barcode</th>
+                <th>Tên sản phẩm</th>
+                <th style="width: 14%;" class="text-end">Số lượng</th>
             </tr>
           </thead>
           <tbody id="skuTableBody"></tbody>
@@ -97,7 +111,7 @@
   </div>
 
   <div class="small text-muted mt-2">
-    Quét mã DO-C hoặc DO-L để tải thông tin đóng hàng.
+    Quét barcode trên phiếu Picking List để tải thông tin đóng hàng. Không scan mã DO vì phiếu đã gom theo cửa hàng.
   </div>
 
 </div>

@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const skuTableBody = document.getElementById("skuTableBody");
 
   const actualPackageQty = document.getElementById("actual_package_qty");
+  const pickerNameInput = document.getElementById("picker_name");
 
   const scanDoBtn = document.getElementById("scanDoBtn");
   const closeScannerBtn = document.getElementById("closeScannerBtn");
@@ -65,14 +66,19 @@ document.addEventListener("DOMContentLoaded", function () {
       const data = await res.json();
 
       if (!data.ok) {
-        showMessage("alert-danger", data.error || "Không tìm thấy phiếu.");
+        showMessage("alert-danger", data.error || data.message || "Không tìm thấy phiếu.");
         return;
       }
 
       currentPack = data.data;
 
       document.getElementById("infoPickingNo").innerText = currentPack.picking_no;
-      document.getElementById("infoDoNo").innerText = currentPack.do_no;
+      document.getElementById("infoDoNo").innerText = (currentPack.do_nos || []).join(", ") || currentPack.do_no || "";
+      document.getElementById("infoTotalDo").innerText = currentPack.total_do || 0;
+      document.getElementById("infoTrip").innerText = currentPack.trip_no || "-";
+      document.getElementById("infoWave").innerText = currentPack.wave || "-";
+      document.getElementById("infoSlot").innerText = currentPack.khung_gio || "-";
+      document.getElementById("infoDeliveryType").innerText = currentPack.loai_giao || "-";
       document.getElementById("infoStore").innerText =
         currentPack.store_id + " - " + currentPack.store_name;
       document.getElementById("infoType").innerText = currentPack.pack_type_name;
@@ -97,12 +103,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
       actualPackageQty.value = currentPack.actual_package_qty || "";
+      if (pickerNameInput) pickerNameInput.value = currentPack.picked_by || "";
 
       renderSkuTable(currentPack.rows || []);
 
       clearMessage();
       packBox.classList.remove("d-none");
-      actualPackageQty.focus();
+      if (pickerNameInput && !pickerNameInput.value.trim()) {
+        pickerNameInput.focus();
+      } else {
+        actualPackageQty.focus();
+      }
 
     } catch (err) {
       showMessage("alert-danger", err.message || "Lỗi kết nối server.");
@@ -115,17 +126,30 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
+    const pickerName = (pickerNameInput ? pickerNameInput.value.trim() : "");
+
+    if (!pickerName) {
+      showMessage("alert-danger", "Vui lòng nhập người lấy hàng / picker trước khi xác nhận đóng hàng.");
+      if (pickerNameInput) pickerNameInput.focus();
+      return;
+    }
+
     const packageQty = actualPackageQty.value.trim();
 
     if (packageQty === "" || Number(packageQty) < 0) {
       showMessage("alert-danger", "Số kiện thực tế không hợp lệ.");
-      actualPackageQty.focus();
+      if (pickerNameInput && !pickerNameInput.value.trim()) {
+        pickerNameInput.focus();
+      } else {
+        actualPackageQty.focus();
+      }
       return;
     }
 
     const formData = new FormData();
-    formData.append("do_no", currentPack.do_no);
+    formData.append("do_no", currentPack.picking_no);
     formData.append("actual_package_qty", packageQty);
+    formData.append("picker_name", pickerName);
 
     try {
       confirmPackBtn.disabled = true;
@@ -139,7 +163,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const data = await res.json();
 
       if (!data.ok) {
-        showMessage("alert-danger", data.error || "Đóng hàng lỗi.");
+        showMessage("alert-danger", data.error || data.message || "Đóng hàng lỗi.");
         confirmPackBtn.disabled = false;
         confirmPackBtn.innerText = "✅ Xác nhận đóng hàng";
         return;
@@ -159,6 +183,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       doInput.value = "";
       actualPackageQty.value = "";
+      if (pickerNameInput) pickerNameInput.value = "";
       skuTableBody.innerHTML = "";
 
       packBox.classList.add("d-none");
@@ -215,7 +240,16 @@ document.addEventListener("DOMContentLoaded", function () {
       closeZxingScanner(true);
     });
   }
-});
+
+  if (pickerNameInput) {
+  pickerNameInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      actualPackageQty.focus();
+    }
+  });
+}
+
 if (actualPackageQty) {
   actualPackageQty.addEventListener("keydown", function (e) {
     if (e.key === "Enter") {
@@ -227,3 +261,4 @@ if (actualPackageQty) {
     }
   });
 }
+});

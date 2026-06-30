@@ -257,6 +257,7 @@ def pack_confirm(
     request: Request,
     do_no: str = Form(...),
     actual_package_qty: int = Form(...),
+    picker_name: str = Form(""),
     db: Session = Depends(get_db),
 ):
     try:
@@ -264,6 +265,7 @@ def pack_confirm(
                 db=db,
                 do_no=do_no,
                 actual_package_qty=actual_package_qty,
+                picker_name=picker_name,
                 user_name=username(request),
                 device_name=request.headers.get("User-Agent", ""),
             )

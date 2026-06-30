@@ -197,7 +197,7 @@ class PalletHeader(Base):
 
     pallet_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     po_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
-    status: Mapped[str] = mapped_column(String(50), default="GR_IN_PROGRESS", index=True)
+    status: Mapped[str] = mapped_column(String(50), default="DRAFT", index=True)
     created_by: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -214,7 +214,7 @@ class PalletDetail(Base):
     qty_gr: Mapped[int] = mapped_column(Integer, default=0)
     qty_putaway: Mapped[int] = mapped_column(Integer, default=0)
     qty_remain_putaway: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[str] = mapped_column(String(50), default="WAIT_PUTAWAY", index=True)
+    status: Mapped[str] = mapped_column(String(50), default="DRAFT", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -233,7 +233,7 @@ class InboundQueue(Base):
     qty_gr: Mapped[int] = mapped_column(Integer)
     qty_putaway: Mapped[int] = mapped_column(Integer, default=0)
     qty_remain_putaway: Mapped[int] = mapped_column(Integer)
-    flow_status: Mapped[str] = mapped_column(String(50), default="WAIT_PUTAWAY")
+    flow_status: Mapped[str] = mapped_column(String(50), default="DRAFT")
     last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -357,8 +357,9 @@ class DoDetail(Base):
     dc_site: Mapped[str] = mapped_column(String(100), default="")
     sto_no: Mapped[str] = mapped_column(String(100), default="")
     do_created_date: Mapped[str] = mapped_column(String(100), default="")
+    trip_no: Mapped[str] = mapped_column(String(100), default="")
 
-    do_no: Mapped[str] = mapped_column(String(100), index=True)
+    do_no: Mapped[str] = mapped_column(Text, default="", index=True)
     store_id: Mapped[str] = mapped_column(String(100), index=True)
     store_name: Mapped[str] = mapped_column(String(255), default="")
 
@@ -383,6 +384,12 @@ class PickingHeader(Base):
 
     store_id: Mapped[str] = mapped_column(String(100), index=True)
     store_name: Mapped[str] = mapped_column(String(255), default="")
+
+    # Thông tin điều phối lấy từ file DO upload
+    wave: Mapped[str] = mapped_column(String(100), default="")
+    khung_gio: Mapped[str] = mapped_column(String(100), default="")
+    loai_giao: Mapped[str] = mapped_column(String(100), default="")
+    trip_no: Mapped[str] = mapped_column(String(100), default="")
 
     pick_type: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
@@ -413,7 +420,7 @@ class PackHeader(Base):
     picking_id: Mapped[int] = mapped_column(Integer, index=True)
     picking_no: Mapped[str] = mapped_column(String(120), unique=True, index=True)
 
-    do_no: Mapped[str] = mapped_column(String(100), index=True)
+    do_no: Mapped[str] = mapped_column(Text, default="", index=True)
     store_id: Mapped[str] = mapped_column(String(100), index=True)
     store_name: Mapped[str] = mapped_column(String(255), default="")
 
@@ -423,6 +430,7 @@ class PackHeader(Base):
     actual_package_qty: Mapped[int] = mapped_column(Integer, default=0)
 
     status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
+    picked_by: Mapped[str] = mapped_column(String(100), default="")
     packed_by: Mapped[str] = mapped_column(String(100), default="")
     packed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -466,6 +474,7 @@ class PickingDetail(Base):
     sku: Mapped[str] = mapped_column(String(100), index=True)
     barcode: Mapped[str] = mapped_column(String(100), index=True)
     product_name: Mapped[str] = mapped_column(String(255), default="")
+    uom: Mapped[str] = mapped_column(String(50), default="")
     category: Mapped[str] = mapped_column(String(100), default="")
     location_id: Mapped[str] = mapped_column(String(100), default="")
     pick_index: Mapped[int] = mapped_column(Integer, default=999999)

@@ -55,6 +55,17 @@ def safe_text(value, default=""):
     return str(value).strip()
 
 
+
+
+def get_first_text(row, columns, default=""):
+    """Lấy text theo danh sách tên cột, dùng cho file upload có header tiếng Việt/tiếng Anh."""
+    for col in columns:
+        if col in row.index:
+            value = safe_text(row.get(col), "")
+            if value:
+                return value
+    return default
+
 def safe_int(value, default=0):
     try:
         if pd.isna(value):
@@ -238,6 +249,7 @@ def download_do_detail_template():
         "wave": 1,
         "Khung giờ": "08:15:00",
         "Loại giao": "GHN",
+        "Mã chuyến": "DN001",
         "DC Sites": "1325",
         "Số STO": "4834603446",
         "DO": "7078865709",
@@ -568,6 +580,20 @@ async def import_po_detail(file: UploadFile = File(...), db: Session = Depends(g
                 }
             grouped[key]["qty_order"] += qty_order
 
+        # Xóa các dòng DO cũ còn WAIT_PICK của cùng cửa hàng nhưng không nằm trong file upload mới.
+        # Nếu không xóa, phiếu store picking sẽ lấy cả dữ liệu cũ và gây duplicate SKU trên phiếu in.
+        current_keys = set(grouped.keys())
+        stale_deleted = 0
+        for store_id in store_set:
+            old_rows = db.query(DoDetail).filter(DoDetail.store_id == store_id, DoDetail.status == "WAIT_PICK").all()
+            for old in old_rows:
+                old_key = ((old.do_no or "").strip(), (old.store_id or "").strip(), (old.sku or "").strip().upper())
+                if old_key not in current_keys:
+                    db.delete(old)
+                    stale_deleted += 1
+        if stale_deleted:
+            db.flush()
+
         inserted = updated = 0
         duplicate = max(len(df) - skipped - len(grouped), 0)
         for row in grouped.values():
@@ -603,6 +629,7 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
         grouped = {}
         skipped = 0
         do_set = set()
+        store_set = set()
         for _, row in df.iterrows():
             do_no = safe_text(row.get("DO"))
             sku = safe_text(row.get("Sku")).upper()
@@ -617,6 +644,7 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
                     "wave": safe_text(row.get("wave")),
                     "khung_gio": safe_text(row.get("Khung giờ")),
                     "loai_giao": safe_text(row.get("Loại giao")),
+                    "trip_no": get_first_text(row, ["Mã chuyến", "Ma chuyen", "Trip", "trip", "trip_no", "trip no"], ""),
                     "dc_site": safe_text(row.get("DC Sites")),
                     "sto_no": safe_text(row.get("Số STO")),
                     "do_created_date": safe_text(row.get("Ngày tạo DO")),
@@ -625,11 +653,26 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
                     "store_name": safe_text(row.get("Tên cửa hàng")),
                     "sku": sku,
                     "product_name": safe_text(row.get("Tên hàng")),
-                    "uom": safe_text(row.get("ĐVT")),
+                    "uom": get_first_text(row, ["ĐVT", "DVT", "Đơn vị tính", "Don vi tinh", "uom", "UOM"], ""),
                     "qty_do": 0,
                 }
             grouped[key]["qty_do"] += qty_do
             do_set.add(do_no)
+            store_set.add(store_id)
+
+        # Xóa các dòng DO cũ còn WAIT_PICK của cùng cửa hàng nhưng không nằm trong file upload mới.
+        # Nếu không xóa, phiếu store picking sẽ lấy cả dữ liệu cũ và gây duplicate SKU trên phiếu in.
+        current_keys = set(grouped.keys())
+        stale_deleted = 0
+        for store_id in store_set:
+            old_rows = db.query(DoDetail).filter(DoDetail.store_id == store_id, DoDetail.status == "WAIT_PICK").all()
+            for old in old_rows:
+                old_key = ((old.do_no or "").strip(), (old.store_id or "").strip(), (old.sku or "").strip().upper())
+                if old_key not in current_keys:
+                    db.delete(old)
+                    stale_deleted += 1
+        if stale_deleted:
+            db.flush()
 
         inserted = updated = 0
         duplicate = max(len(df) - skipped - len(grouped), 0)
@@ -639,6 +682,7 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
                 "wave": row["wave"],
                 "khung_gio": row["khung_gio"],
                 "loai_giao": row["loai_giao"],
+                "trip_no": row.get("trip_no", ""),
                 "dc_site": row["dc_site"],
                 "sto_no": row["sto_no"],
                 "do_created_date": row["do_created_date"],
@@ -663,11 +707,16 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
         db.commit()
 
         created_picking = 0
-        for do_no in do_set:
-            result = picking_service.tao_phieu_lay_hang_theo_do(db, do_no)
+        for store_id in store_set:
+            result = picking_service.tao_phieu_lay_hang_theo_cua_hang(db, store_id)
             created_picking += result["so_phieu_lay_hang"]
 
-        return import_result(inserted, updated, skipped, duplicate, so_do=len(do_set), so_phieu_lay_hang=created_picking)
+        # Sprint 40 guard: ép chuẩn lại mã phiếu ngay sau khi tạo.
+        # Tránh trường hợp service cũ/cache vẫn sinh dạng MA_CUA_HANG-C/L.
+        picking_service.chuan_hoa_ma_phieu_theo_ngay_do(db, store_ids=list(store_set))
+        db.commit()
+
+        return import_result(inserted, updated, skipped, duplicate, so_do=len(do_set), so_cua_hang=len(store_set), so_phieu_lay_hang=created_picking, stale_deleted=stale_deleted)
     except Exception as e:
         db.rollback()
         return {"ok": False, "error": str(e)}

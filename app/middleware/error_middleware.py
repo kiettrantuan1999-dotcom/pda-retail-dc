@@ -1,3 +1,5 @@
+import traceback
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from fastapi.responses import JSONResponse
@@ -10,6 +12,12 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except Exception as exc:
+            # In lỗi thật ra terminal để debug local.
+            print("\n========== SUPRA WES ERROR ==========")
+            print(f"PATH: {request.method} {request.url.path}")
+            print(traceback.format_exc())
+            print("=====================================\n")
+
             db = SessionLocal()
             try:
                 user = request.session.get("user") if hasattr(request, "session") else None

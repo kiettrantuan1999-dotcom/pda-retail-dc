@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -66,6 +68,8 @@ def chi_tiet_phieu(
     db: Session = Depends(get_db),
 ):
     header, details, total_label_qty = svc.chi_tiet_phieu_lay_hang(db, picking_id)
+    pick_lines = svc.tong_hop_dong_pick(details)
+    stats = svc.thong_ke_phieu(details)
 
     return templates.TemplateResponse(
         "picking/detail.html",
@@ -73,6 +77,8 @@ def chi_tiet_phieu(
             "request": request,
             "header": header,
             "details": details,
+            "pick_lines": pick_lines,
+            "stats": stats,
             "total_label_qty": total_label_qty,
         },
     )
@@ -84,15 +90,29 @@ def in_phieu_lay_hang(
     picking_id: int,
     db: Session = Depends(get_db),
 ):
-    svc.danh_dau_da_in(db, picking_id, username(request))
-    header, details, total_label_qty = svc.chi_tiet_phieu_lay_hang(db, picking_id)
+    # Sprint 31: dùng safe reader cho trang in để tránh lỗi 500 khi DB local
+    # chưa đồng bộ đủ cột mới như barcode/uom/pcb/label_qty.
+    header, details, total_label_qty = svc.chi_tiet_phieu_lay_hang_print_safe(db, picking_id)
+    pick_lines = svc.tong_hop_dong_pick(details)
+    stats = svc.thong_ke_phieu(details)
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "picking/print.html",
         {
             "request": request,
             "header": header,
             "details": details,
+            "pick_lines": pick_lines,
+            "stats": stats,
             "total_label_qty": total_label_qty,
+            "print_time": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         },
     )
+
+    # Đánh dấu đã in sau khi tạo response thành công. Nếu update lỗi thì không làm vỡ trang in.
+    try:
+        svc.danh_dau_da_in_safe(db, picking_id, username(request))
+    except Exception as exc:
+        print("WARN picking print update failed:", repr(exc))
+
+    return response

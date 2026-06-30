@@ -3,12 +3,21 @@
 
 <div class="mb-3">
   <h4 class="fw-bold mb-0">📋 Chi tiết phiếu lấy hàng</h4>
-  <div class="text-muted">DO: {{ header.do_no }}</div>
+  <div class="text-muted">Gom theo cửa hàng: {{ header.store_id }} - {{ header.store_name }}</div>
 </div>
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <div><b>Cửa hàng:</b> {{ header.store_id }} - {{ header.store_name }}</div>
+    <div><b>Mã chuyến:</b> {{ header.trip_no or "" }}</div>
+    <div><b>Wave:</b> {{ header.wave or "" }}</div>
+    <div><b>Khung giờ giao:</b> {{ header.khung_gio or "" }}</div>
+    <div><b>Loại giao:</b> {{ header.loai_giao or "" }}</div>
+    <hr>
+    <div><b>Tổng DO:</b> {{ stats.so_do }}</div>
+    <div><b>Tổng SKU:</b> {{ stats.so_sku }}</div>
+    <div><b>Tổng SL:</b> {{ stats.tong_sl }}</div>
+    <div><b>Số tem cần in:</b> {{ total_label_qty }}</div>
 
     <div class="mt-2">
       {% if header.pick_type == "CASE" %}
@@ -33,7 +42,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for d in details %}
+      {% for d in pick_lines %}
       <tr>
         <td>{{ d.pick_index }}</td>
         <td>
