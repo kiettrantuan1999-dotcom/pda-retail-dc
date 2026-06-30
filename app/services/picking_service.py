@@ -210,11 +210,9 @@ def tao_phieu_lay_hang_theo_cua_hang(db: Session, store_id: str):
     """
     Flow mới: gom theo cửa hàng.
 
-    1 cửa hàng -> tối đa 2 phiếu:
-    - STORE-C: hàng chẵn
-    - STORE-L: hàng lẻ
-
-    Bên dưới PickingDetail vẫn giữ do_no từng dòng để pack/trừ tồn vẫn trace được nhiều DO.
+    Sprint Performance:
+    - Bulk load ProductMaster/SkuMaster/Location ưu tiên cho toàn bộ SKU của cửa hàng.
+    - Tránh N+1 query khi file DO có nhiều dòng.
     """
     store_id = (store_id or "").strip()
     if not store_id:
@@ -227,15 +225,64 @@ def tao_phieu_lay_hang_theo_cua_hang(db: Session, store_id: str):
 
     _xoa_phieu_cua_hang_chua_xu_ly(db, store_id)
 
+    sku_list = sorted({(r.sku or "").strip().upper() for r in rows if (r.sku or "").strip()})
+
+    product_map = {}
+    sku_master_map = {}
+    location_map = {}
+
+    if sku_list:
+        product_map = {
+            p.sku: p
+            for p in db.query(ProductMaster).filter(ProductMaster.sku.in_(sku_list)).all()
+        }
+        sku_master_map = {
+            s.sku: s
+            for s in db.query(SkuMaster).filter(SkuMaster.sku.in_(sku_list)).all()
+        }
+
+        inv_rows = (
+            db.query(InventoryBalance, LocationMaster)
+            .outerjoin(LocationMaster, InventoryBalance.location_id == LocationMaster.location_id)
+            .filter(InventoryBalance.sku.in_(sku_list))
+            .filter(InventoryBalance.qty_onhand > 0)
+            .order_by(
+                InventoryBalance.sku.asc(),
+                LocationMaster.pick_index.asc().nullslast(),
+                InventoryBalance.location_id.asc(),
+            )
+            .all()
+        )
+        for inv, loc in inv_rows:
+            if inv.sku in location_map:
+                continue
+            location_map[inv.sku] = (
+                inv.location_id,
+                int((loc.pick_index if loc and loc.pick_index is not None else 999999) or 999999),
+            )
+
     meta = _meta_from_rows(rows)
     grouped = {}
+    now = datetime.utcnow()
 
     for r in rows:
         sku = (r.sku or "").strip().upper()
         if not sku:
             continue
 
-        pick_type, pcb, mhu, product = _phan_loai_sku(db, sku)
+        sku_master = sku_master_map.get(sku)
+        product = product_map.get(sku)
+
+        pick_type = "ODD"
+        pcb = 1
+        mhu = 1
+        if sku_master:
+            pick_type = (sku_master.sku_type or "ODD").upper()
+            pcb = sku_master.pcb or 1
+            mhu = sku_master.mhu or 1
+        if pick_type not in ["CASE", "ODD"]:
+            pick_type = "ODD"
+
         key = (r.store_id, pick_type)
 
         if key not in grouped:
@@ -254,15 +301,15 @@ def tao_phieu_lay_hang_theo_cua_hang(db: Session, store_id: str):
                 pack_status="WAIT",
                 print_status="WAIT_PRINT",
                 print_count=0,
-                created_at=datetime.utcnow(),
-                last_update=datetime.utcnow(),
+                created_at=now,
+                last_update=now,
             )
             db.add(header)
             db.flush()
             grouped[key] = header
 
         header = grouped[key]
-        location_id, pick_index = lay_vi_tri_uu_tien(db, sku)
+        location_id, pick_index = location_map.get(sku, ("", 999999))
         label_qty = tinh_so_tem_chuan(r.qty_do, pcb, pick_type)
 
         detail = PickingDetail(
@@ -283,7 +330,7 @@ def tao_phieu_lay_hang_theo_cua_hang(db: Session, store_id: str):
             pick_type=pick_type,
             label_qty=label_qty,
             status="WAIT_PICK",
-            created_at=datetime.utcnow(),
+            created_at=now,
         )
         db.add(detail)
 

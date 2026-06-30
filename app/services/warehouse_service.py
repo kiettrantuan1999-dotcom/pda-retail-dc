@@ -646,9 +646,8 @@ def _location_load_score(db: Session, location_id: str) -> int:
 def _best_locations_for_aisles(db: Session, aisles: list[str], limit: int = 8):
     """Trả vị trí gợi ý theo dãy.
 
-    Lưu ý: bảng location_master hiện tại không có cột aisle / putaway_index / travel_sequence.
-    Vì vậy không query LocationMaster.aisle nữa, mà derive aisle từ location_id.
-    Ví dụ: A01-01-01 -> aisle = A01.
+    Sprint Performance: tránh N+1 query count tồn theo từng vị trí.
+    Thay vì mỗi location gọi COUNT(inventory_balance), gom location_id rồi query 1 lần.
     """
     aisle_set = {str(x or "").strip().upper() for x in aisles if str(x or "").strip()}
     if not aisle_set:
@@ -661,17 +660,37 @@ def _best_locations_for_aisles(db: Session, aisles: list[str], limit: int = 8):
             LocationMaster.pick_index.asc(),
             LocationMaster.location_id.asc(),
         )
-        .limit(max(limit * 50, 200))
+        .limit(max(limit * 80, 300))
         .all()
     )
 
-    result = []
+    candidates = []
     for loc in rows:
         loc_aisle = _location_aisle(loc.location_id)
-        if loc_aisle not in aisle_set:
-            continue
+        if loc_aisle in aisle_set:
+            candidates.append(loc)
 
-        load_score = _location_load_score(db, loc.location_id)
+    if not candidates:
+        return []
+
+    location_ids = [loc.location_id for loc in candidates]
+    load_map = {}
+    try:
+        from sqlalchemy import func
+        load_rows = (
+            db.query(InventoryBalance.location_id, func.count(InventoryBalance.sku))
+            .filter(InventoryBalance.location_id.in_(location_ids))
+            .group_by(InventoryBalance.location_id)
+            .all()
+        )
+        load_map = {r[0]: int(r[1] or 0) for r in load_rows}
+    except Exception:
+        load_map = {}
+
+    result = []
+    for loc in candidates:
+        loc_aisle = _location_aisle(loc.location_id)
+        load_score = int(load_map.get(loc.location_id, 0) or 0)
         max_capacity = int(loc.max_capacity or 1)
         is_full = load_score >= max_capacity if max_capacity > 0 else False
         pick_index = int(loc.pick_index or 999999)
@@ -762,6 +781,13 @@ def _build_putaway_suggestions(db: Session, sku: str, barcode: str, product_name
     }
 
 def get_putaway_by_pallet(db: Session, pallet_id: str):
+    """Load thông tin Put Away theo PA/Pallet ID.
+
+    Sprint Performance:
+    - Bulk query ProductMaster/SkuMaster cho toàn bộ SKU trong PA.
+    - Tránh N+1 query: trước đây mỗi SKU query product + sku_master riêng.
+    - Barcode chưa có master vẫn cho Put Away bình thường.
+    """
     pallet_id = pallet_id.strip().upper()
 
     queues = (
@@ -777,6 +803,20 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
     if not queues:
         raise ValueError("Không tìm thấy PA cần Put Away")
 
+    sku_list = sorted({q.sku for q in queues if q.sku})
+    products = {}
+    sku_masters = {}
+
+    if sku_list:
+        products = {
+            p.sku: p
+            for p in db.query(ProductMaster).filter(ProductMaster.sku.in_(sku_list)).all()
+        }
+        sku_masters = {
+            s.sku: s
+            for s in db.query(SkuMaster).filter(SkuMaster.sku.in_(sku_list)).all()
+        }
+
     po_no = queues[0].po_no
     total_sku = len(queues)
     total_qty_gr = sum(int(q.qty_gr or 0) for q in queues)
@@ -784,11 +824,15 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
     total_qty_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
 
     detail_lines = []
-    dominant_queue = sorted(queues, key=lambda x: int(x.qty_remain_putaway or x.qty_gr or 0), reverse=True)[0]
+    dominant_queue = sorted(
+        queues,
+        key=lambda x: int(x.qty_remain_putaway or x.qty_gr or 0),
+        reverse=True,
+    )[0]
 
     for q in queues:
-        product = db.query(ProductMaster).filter(ProductMaster.sku == q.sku).first()
-        sku_master = db.query(SkuMaster).filter(SkuMaster.sku == q.sku).first()
+        product = products.get(q.sku)
+        sku_master = sku_masters.get(q.sku)
         pcb = sku_master.pcb if sku_master and sku_master.pcb else 1
         sku_type = sku_master.sku_type if sku_master else ""
         product_name = product.product_name if product else "Hàng chưa có master"
@@ -813,8 +857,8 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
             "flow_status": q.flow_status,
         })
 
-    dominant_product = db.query(ProductMaster).filter(ProductMaster.sku == dominant_queue.sku).first()
-    dominant_sku_master = db.query(SkuMaster).filter(SkuMaster.sku == dominant_queue.sku).first()
+    dominant_product = products.get(dominant_queue.sku)
+    dominant_sku_master = sku_masters.get(dominant_queue.sku)
     dominant_pcb = dominant_sku_master.pcb if dominant_sku_master and dominant_sku_master.pcb else 1
     dominant_sku_type = dominant_sku_master.sku_type if dominant_sku_master else ""
     dominant_product_name = dominant_product.product_name if dominant_product else "Hàng chưa có master"

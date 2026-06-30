@@ -10,6 +10,7 @@ from app.routes import staging
 from app.core.config import SECRET_KEY
 from app.routes import pages, auth, api, putaway, master_data, inventory, pa_label
 from app.middleware.error_middleware import ErrorLoggingMiddleware
+from app.middleware.performance_middleware import PerformanceMiddleware
 
 app = FastAPI(
     title="Supra WES",
@@ -18,6 +19,7 @@ app = FastAPI(
 
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 app.add_middleware(ErrorLoggingMiddleware)
+app.add_middleware(PerformanceMiddleware, slow_ms=300)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
