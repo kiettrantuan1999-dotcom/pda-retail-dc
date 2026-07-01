@@ -47,6 +47,19 @@ document.addEventListener("DOMContentLoaded", function () {
   const cancelCompletePaModalBtn = document.getElementById("cancelCompletePaModalBtn");
   const confirmCompletePaModalBtn = document.getElementById("confirmCompletePaModalBtn");
 
+  const assignSkuModal = document.getElementById("assignSkuModal");
+  const assignSkuModalDetail = document.getElementById("assignSkuModalDetail");
+  const assignModalTotalSku = document.getElementById("assignModalTotalSku");
+  const assignModalTotalQty = document.getElementById("assignModalTotalQty");
+  const closeAssignSkuModalBtn = document.getElementById("closeAssignSkuModalBtn");
+
+  const confirmPoModal = document.getElementById("confirmPoModal");
+  const confirmPoModalDetail = document.getElementById("confirmPoModalDetail");
+  const confirmPoModalTotalSku = document.getElementById("confirmPoModalTotalSku");
+  const confirmPoModalTotalReceived = document.getElementById("confirmPoModalTotalReceived");
+  const cancelConfirmPoModalBtn = document.getElementById("cancelConfirmPoModalBtn");
+  const confirmConfirmPoModalBtn = document.getElementById("confirmConfirmPoModalBtn");
+
   const editGrBox = document.getElementById("editGrBox");
   const editGrForm = document.getElementById("editGrForm");
   const cancelEditGrBtn = document.getElementById("cancelEditGrBtn");
@@ -80,6 +93,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let grHistoryRows = {};
   let latestPoSummary = null;
   let pendingCompletePa = null;
+  let pendingConfirmPo = null;
   let suppressAutoScanUntil = 0;
   let isSubmittingGr = false;
 
@@ -425,6 +439,67 @@ function escapeHtml(value) {
   function closeCompleteModal() {
     pendingCompletePa = null;
     if (completePaModal) completePaModal.classList.add("d-none");
+    if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
+      document.body.style.overflow = "";
+    }
+  }
+
+
+  function openAssignSkuModal(data) {
+    if (!assignSkuModal || !data) return false;
+
+    if (assignSkuModalDetail) {
+      assignSkuModalDetail.innerHTML = `
+        <div><b>PO:</b> ${escapeHtml(data.po_no || "")}</div>
+        <div><b>PA:</b> ${escapeHtml(data.pallet_id || "")}</div>
+        <div><b>SKU:</b> ${escapeHtml(data.sku || "")}</div>
+        <div><b>Tên hàng:</b> ${escapeHtml(data.product_name || "")}</div>
+        <div><b>Barcode:</b> ${escapeHtml(data.barcode || "")}</div>
+        <div><b>Tổng nhập dòng này:</b> ${formatNumber(data.qty_total || data.qty_gr || 0)}</div>
+      `;
+    }
+    if (assignModalTotalSku) assignModalTotalSku.innerText = formatNumber(data.pallet_total_sku || 1);
+    if (assignModalTotalQty) assignModalTotalQty.innerText = formatNumber(data.pallet_total_qty || data.qty_total || data.qty_gr || 0);
+
+    assignSkuModal.classList.remove("d-none");
+    document.body.style.overflow = "hidden";
+    return true;
+  }
+
+  function closeAssignSkuModal() {
+    if (assignSkuModal) assignSkuModal.classList.add("d-none");
+    if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
+      document.body.style.overflow = "";
+    }
+    setTimeout(function () {
+      barcodeInput.focus();
+      if (barcodeInput.select) barcodeInput.select();
+    }, 50);
+  }
+
+  function openConfirmPoModal(poNo) {
+    if (!confirmPoModal) return false;
+    const summary = latestPoSummary || {};
+    pendingConfirmPo = { poNo: poNo };
+
+    if (confirmPoModalDetail) {
+      confirmPoModalDetail.innerHTML = `
+        <div><b>PO:</b> ${escapeHtml(poNo)}</div>
+        <div><b>Trạng thái hiện tại:</b> ${escapeHtml(summary.po_status || summary.status || "-")}</div>
+        <div><b>Tổng SL đặt:</b> ${formatNumber(summary.total_order || 0)}</div>
+      `;
+    }
+    if (confirmPoModalTotalSku) confirmPoModalTotalSku.innerText = formatNumber(summary.total_sku || 0);
+    if (confirmPoModalTotalReceived) confirmPoModalTotalReceived.innerText = formatNumber(summary.total_received || 0);
+
+    confirmPoModal.classList.remove("d-none");
+    document.body.style.overflow = "hidden";
+    return true;
+  }
+
+  function closeConfirmPoModal() {
+    pendingConfirmPo = null;
+    if (confirmPoModal) confirmPoModal.classList.add("d-none");
     if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
       document.body.style.overflow = "";
     }
@@ -1027,6 +1102,36 @@ function restoreManualInput(targetInput) {
   }
 
 
+  if (closeAssignSkuModalBtn) {
+    closeAssignSkuModalBtn.addEventListener("click", closeAssignSkuModal);
+  }
+
+  if (assignSkuModal) {
+    assignSkuModal.addEventListener("click", function (e) {
+      if (e.target === assignSkuModal) closeAssignSkuModal();
+    });
+  }
+
+  if (cancelConfirmPoModalBtn) {
+    cancelConfirmPoModalBtn.addEventListener("click", closeConfirmPoModal);
+  }
+
+  if (confirmPoModal) {
+    confirmPoModal.addEventListener("click", function (e) {
+      if (e.target === confirmPoModal) closeConfirmPoModal();
+    });
+  }
+
+  if (confirmConfirmPoModalBtn) {
+    confirmConfirmPoModalBtn.addEventListener("click", async function () {
+      if (!pendingConfirmPo) return closeConfirmPoModal();
+      const poNo = pendingConfirmPo.poNo;
+      closeConfirmPoModal();
+      await executeConfirmPo(poNo);
+    });
+  }
+
+
   if (editGrForm) {
     editGrForm.addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -1084,17 +1189,7 @@ function restoreManualInput(targetInput) {
     });
   }
 
-  async function submitConfirmPo() {
-    const poNo = poInput.value.trim();
-    if (!poNo) return showError("Vui lòng nhập/scan PO trước khi xác nhận PO");
-
-    await loadHistory();
-    await loadPoDetail();
-
-    if (!window.confirm(`Xác nhận đóng PO ${poNo}? Sau khi Confirm PO sẽ không được GR thêm hoặc sửa SL.`)) {
-      return;
-    }
-
+  async function executeConfirmPo(poNo) {
     const formData = new FormData();
     formData.append("po_no", poNo);
 
@@ -1102,6 +1197,7 @@ function restoreManualInput(targetInput) {
     try {
       if (confirmPoBtn) { confirmPoBtn.disabled = true; confirmPoBtn.innerText = "ĐANG XÁC NHẬN PO..."; }
       if (confirmPoTopBtn) { confirmPoTopBtn.disabled = true; confirmPoTopBtn.innerText = "Đang xác nhận..."; }
+      if (confirmConfirmPoModalBtn) { confirmConfirmPoModalBtn.disabled = true; confirmConfirmPoModalBtn.innerText = "Đang xác nhận..."; }
 
       const res = await fetch("/api/gr/confirm-po", { method: "POST", body: formData });
       const data = await res.json();
@@ -1128,11 +1224,21 @@ function restoreManualInput(targetInput) {
     } catch (err) {
       showError(err.message);
     } finally {
+      if (confirmConfirmPoModalBtn) { confirmConfirmPoModalBtn.disabled = false; confirmConfirmPoModalBtn.innerText = "Xác nhận đóng PO"; }
       if (!confirmedOk) {
         if (confirmPoBtn) { confirmPoBtn.disabled = false; confirmPoBtn.innerText = "✅ XÁC NHẬN PO"; }
         if (confirmPoTopBtn) { confirmPoTopBtn.disabled = false; confirmPoTopBtn.innerText = "✓ Confirm PO"; }
       }
     }
+  }
+
+  async function submitConfirmPo() {
+    const poNo = poInput.value.trim();
+    if (!poNo) return showError("Vui lòng nhập/scan PO trước khi xác nhận PO");
+
+    await loadHistory();
+    await loadPoDetail();
+    openConfirmPoModal(poNo);
   }
 
   if (confirmPoBtn) {
@@ -1208,9 +1314,14 @@ function restoreManualInput(targetInput) {
         await loadHistory();
         await loadPoDetail();
 
+        // Hiện popup xác nhận SKU đã được assign vào PA để nhân sự nhìn rõ trạng thái lưu.
+        openAssignSkuModal(data.data);
+
         setTimeout(function () {
-          barcodeInput.focus();
-          if (barcodeInput.select) barcodeInput.select();
+          if (!assignSkuModal || assignSkuModal.classList.contains("d-none")) {
+            barcodeInput.focus();
+            if (barcodeInput.select) barcodeInput.select();
+          }
         }, 100);
       } else {
         resultTitle.innerText = "❌ GR lỗi";

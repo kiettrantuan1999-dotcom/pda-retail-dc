@@ -564,6 +564,62 @@
   <a href="/" class="btn btn-outline-secondary w-100">⬅ Về Home</a>
 </div>
 
+
+
+<div id="assignSkuModal" class="gr-complete-modal-backdrop d-none" role="dialog" aria-modal="true">
+  <div class="gr-complete-modal">
+    <div class="gr-complete-title"><span>✅</span><span>SKU đã được assign vào PA</span></div>
+    <div class="text-muted mb-2">Hệ thống đã tự lưu dòng SKU vừa nhập vào PA hiện tại.</div>
+
+    <div class="small mb-3" id="assignSkuModalDetail">-</div>
+
+    <div class="gr-modal-kpis">
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng SKU trên PA</div>
+        <div class="gr-kpi-value" id="assignModalTotalSku">0</div>
+      </div>
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng SL trên PA</div>
+        <div class="gr-kpi-value" id="assignModalTotalQty">0</div>
+      </div>
+    </div>
+
+    <div class="text-muted small mb-4">Scan SKU tiếp theo trên cùng PA, hoặc bấm <b>Confirm PA</b> khi PA đã full hàng.</div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <button id="closeAssignSkuModalBtn" type="button" class="btn btn-primary px-4">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="confirmPoModal" class="gr-complete-modal-backdrop d-none" role="dialog" aria-modal="true">
+  <div class="gr-complete-modal">
+    <div class="gr-complete-title"><span>⚠️</span><span>Xác nhận đóng PO</span></div>
+    <div class="text-muted mb-1">Bạn có chắc chắn muốn Confirm PO này?</div>
+    <div class="text-muted">Sau khi Confirm PO, hệ thống sẽ khóa GR thêm và khóa sửa số lượng.</div>
+
+    <div class="small mt-3 mb-2" id="confirmPoModalDetail">-</div>
+
+    <div class="gr-modal-kpis">
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng SKU</div>
+        <div class="gr-kpi-value" id="confirmPoModalTotalSku">0</div>
+      </div>
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng SL đã nhập</div>
+        <div class="gr-kpi-value" id="confirmPoModalTotalReceived">0</div>
+      </div>
+    </div>
+
+    <div class="text-danger small fw-semibold mb-4">⚠️ Chỉ bấm khi đã nhập xong toàn bộ SKU của PO.</div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <button id="cancelConfirmPoModalBtn" type="button" class="btn btn-outline-secondary px-4">Hủy</button>
+      <button id="confirmConfirmPoModalBtn" type="button" class="btn btn-success px-4">Xác nhận đóng PO</button>
+    </div>
+  </div>
+</div>
+
 <div id="completePaModal" class="gr-complete-modal-backdrop d-none" role="dialog" aria-modal="true">
   <div class="gr-complete-modal">
     <div class="gr-complete-title"><span>⚠️</span><span>Xác nhận hoàn tất PA</span></div>
