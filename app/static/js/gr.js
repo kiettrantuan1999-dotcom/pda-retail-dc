@@ -859,6 +859,66 @@ function restoreManualInput(targetInput) {
   });
 
 
+  async function saveCurrentGrLineIfNeeded() {
+    const poNo = poInput.value.trim();
+    const palletId = palletInput.value.trim();
+    const barcode = barcodeInput.value.trim();
+    const qty = recalcQtyPreview();
+
+    // Nếu màn hình không còn barcode/SL đang nhập thì không cần lưu thêm.
+    // Case này xảy ra khi user đã Enter để lưu SKU trước đó, JS đã clear barcode + qty.
+    if (!barcode && qty.qtyTotal <= 0) {
+      return { ok: true, skipped: true };
+    }
+
+    // Nếu có barcode nhưng chưa nhập SL thì vẫn phải chặn rõ, không để Confirm PA báo PA rỗng gây hiểu nhầm.
+    if (!poNo) return { ok: false, error: "Vui lòng scan/nhập PO" };
+    if (!palletId) return { ok: false, error: "Vui lòng scan PA" };
+    if (!barcode) return { ok: true, skipped: true };
+    if (qty.pcb <= 0) return { ok: false, error: "PCB phải lớn hơn 0" };
+    if (qty.cartonQty < 0 || qty.looseQty < 0 || qty.qtyPromo < 0) return { ok: false, error: "Số lượng không được âm" };
+    if (qty.qtyTotal <= 0) return { ok: false, error: "Bạn đã scan barcode nhưng chưa nhập số lượng. Vui lòng nhập SL trước khi Confirm PA." };
+
+    if (isSubmittingGr) return { ok: false, error: "Hệ thống đang lưu SKU, vui lòng thao tác lại sau vài giây." };
+    isSubmittingGr = true;
+
+    const formData = new FormData();
+    formData.append("po_no", poNo);
+    formData.append("pallet_id", palletId);
+    formData.append("barcode", barcode);
+    formData.append("pcb", String(qty.pcb));
+    formData.append("carton_qty", String(qty.cartonQty));
+    formData.append("loose_qty", String(qty.looseQty));
+    formData.append("qty_promo", String(qty.qtyPromo));
+
+    try {
+      const res = await fetch("/api/gr/confirm", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        return { ok: false, error: data.error || "Không tự lưu được SKU vào PA trước khi Confirm PA" };
+      }
+
+      // Lưu thành công: clear dòng đang nhập để tránh bấm Confirm PA nhiều lần bị cộng trùng số lượng.
+      barcodeInput.value = "";
+      cartonQtyInput.value = "0";
+      looseQtyInput.value = "0";
+      qtyPromoInput.value = "0";
+      clearProductInfo();
+      recalcQtyPreview();
+
+      return { ok: true, skipped: false, data: data.data };
+    } catch (err) {
+      return { ok: false, error: err.message || "Lỗi kết nối khi tự lưu SKU vào PA" };
+    } finally {
+      isSubmittingGr = false;
+    }
+  }
+
+
   async function submitCompletePa(poNo, palletId) {
     const formData = new FormData();
     formData.append("po_no", poNo);
@@ -928,10 +988,18 @@ function restoreManualInput(targetInput) {
       if (!poNo) return showError("Vui lòng nhập/scan PO trước khi Confirm PA");
       if (!palletId) return showError("Vui lòng nhập/scan PA trước khi Confirm PA");
 
+      // Fix flow mới: nếu user vừa scan barcode + nhập SL rồi bấm Confirm PA ngay,
+      // tự lưu dòng SKU đang nhập trước, không bắt user phải Enter/nút lưu riêng.
+      const saveResult = await saveCurrentGrLineIfNeeded();
+      if (!saveResult.ok) {
+        return showError(saveResult.error || "Không tự lưu được SKU vào PA trước khi Confirm PA");
+      }
+
       await loadHistory();
+      await loadPoDetail();
       const currentSummary = getCurrentPaSummary(poNo, palletId);
       if (currentSummary.totalSku <= 0 || currentSummary.totalQty <= 0) {
-        return showError("PA chưa có SKU hoặc số lượng GR, không thể Confirm PA");
+        return showError("PA chưa có SKU hoặc số lượng GR. Hãy scan barcode và nhập số lượng trước khi Confirm PA.");
       }
 
       openCompleteModal(poNo, palletId);
