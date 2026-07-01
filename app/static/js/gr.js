@@ -83,15 +83,14 @@ document.addEventListener("DOMContentLoaded", function () {
   function openSheet(sheet) {
     if (!sheet) return;
     sheet.classList.remove("d-none");
-    document.body.style.overflow = "hidden";
+    if (sheet.id === "editGrBox") {
+      sheet.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   function closeSheet(sheet) {
     if (!sheet) return;
     sheet.classList.add("d-none");
-    if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
-      document.body.style.overflow = "";
-    }
   }
 
   document.querySelectorAll(".gr-sheet-close").forEach(function (btn) {
@@ -445,14 +444,17 @@ function escapeHtml(value) {
 
       return `
         <tr>
-          <td class="fw-semibold text-nowrap">${escapeHtml(r.pallet_id || "")}</td>
-          <td class="text-nowrap">${escapeHtml(r.sku || "")}</td>
-          <td style="min-width: 180px;">${escapeHtml(r.product_name || "-")}</td>
-          <td class="text-nowrap">${escapeHtml(r.barcode || "-")}</td>
-          <td class="text-end fw-semibold">${pcb}</td>
-          <td class="text-end fw-semibold">${Number(r.qty_total || r.qty_gr || 0)}</td>
-          <td><span class="badge text-bg-secondary">${escapeHtml(r.flow_status || "")}</span></td>
-          <td class="text-end">
+          <td class="gr-primary-cell" data-label="PA">
+            <div class="sku-main">${escapeHtml(r.pallet_id || "")}</div>
+            <div class="muted-line">SKU: ${escapeHtml(r.sku || "-")} · Barcode: ${escapeHtml(r.barcode || "-")}</div>
+          </td>
+          <td data-label="SKU">${escapeHtml(r.sku || "")}</td>
+          <td data-label="Tên hàng">${escapeHtml(r.product_name || "-")}</td>
+          <td data-label="Barcode">${escapeHtml(r.barcode || "-")}</td>
+          <td data-label="PCB" class="text-end fw-semibold">${pcb}</td>
+          <td data-label="SL nhập" class="text-end fw-semibold">${formatNumber(r.qty_total || r.qty_gr || 0)}</td>
+          <td data-label="Trạng thái"><span class="badge text-bg-secondary">${escapeHtml(r.flow_status || "")}</span></td>
+          <td data-label="Sửa" class="text-end">
             ${
               canEdit
                 ? `<button
@@ -515,15 +517,18 @@ function escapeHtml(value) {
     poDetailBody.innerHTML = summary.rows.map(function (r) {
       return `
         <tr>
-          <td class="fw-semibold text-nowrap">${escapeHtml(r.sku || "")}</td>
-          <td class="text-nowrap">${escapeHtml(r.barcode || "")}</td>
-          <td class="text-end">${Number(r.qty_order || 0)}</td>
-          <td class="text-end">${Number(r.carton_qty || 0)}</td>
-          <td class="text-end">${Number(r.loose_qty || 0)}</td>
-          <td class="text-end fw-semibold">${Number(r.qty_total || 0)}</td>
-          <td><span class="badge ${statusBadge(r.status)}">${escapeHtml(r.status || "")}</span></td>
-          <td class="small">${escapeHtml(r.note || "")}</td>
-          <td class="text-end fw-semibold">${Number(r.qty_total || 0)}</td>
+          <td class="gr-primary-cell" data-label="SKU">
+            <div class="sku-main">${escapeHtml(r.sku || "")}</div>
+            <div class="muted-line">Barcode: ${escapeHtml(r.barcode || "-")}</div>
+          </td>
+          <td data-label="Barcode">${escapeHtml(r.barcode || "")}</td>
+          <td data-label="SL đặt" class="text-end">${formatNumber(r.qty_order || 0)}</td>
+          <td data-label="Thùng chẵn" class="text-end">${formatNumber(r.carton_qty || 0)}</td>
+          <td data-label="Kiện lẻ" class="text-end">${formatNumber(r.loose_qty || 0)}</td>
+          <td data-label="Tổng SL" class="text-end fw-semibold">${formatNumber(r.qty_total || 0)}</td>
+          <td data-label="Trạng thái"><span class="badge ${statusBadge(r.status)}">${escapeHtml(r.status || "")}</span></td>
+          <td data-label="Ghi chú" class="small">${escapeHtml(r.note || "")}</td>
+          <td data-label="Đã nhập" class="text-end fw-semibold">${formatNumber(r.qty_received || r.received_qty || 0)}</td>
         </tr>
       `;
     }).join("");

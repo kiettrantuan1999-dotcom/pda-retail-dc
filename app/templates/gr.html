@@ -122,6 +122,84 @@
     background: rgba(0, 0, 0, 0.92);
     text-align: center;
   }
+
+  /* Mobile-first: giữ UI cũ, nhưng bảng không còn bắt buộc kéo ngang */
+  .gr-inline-section { margin-top: 14px; }
+  .gr-inline-section .gr-sheet {
+    width: 100%;
+    max-height: none;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+  }
+  .gr-inline-section .gr-sheet-body { overflow: visible; padding: 12px; }
+  .gr-inline-section .gr-sheet-header { border-radius: 18px 18px 0 0; }
+  .gr-inline-section .gr-sheet-actions { display: none; }
+  .gr-inline-section .table-responsive { overflow-x: visible; }
+
+  .gr-mobile-table td .gr-cell-value { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+  .gr-mobile-table .sku-main { font-weight: 900; color: #0f172a; }
+  .gr-mobile-table .muted-line { font-size: 12px; color: #64748b; }
+
+  @media (max-width: 768px) {
+    .gr-page-shell { max-width: 100%; }
+    .gr-title-wrap h4 { font-size: 18px; }
+    .gr-title-wrap .text-muted { display: none; }
+    .gr-action-bar { gap: 6px; }
+    .gr-action-bar .btn { padding-left: 8px; padding-right: 8px; font-size: 13px; }
+    .gr-card .card-body { padding: 12px; }
+    .form-control-lg { font-size: 16px; min-height: 46px; padding: 8px 10px; }
+    .pda-action-btn { min-height: 48px; font-size: 15px; }
+    .form-label { font-size: 13px; margin-bottom: 4px; }
+    .form-text { font-size: 11px; }
+    #productInfoBox .small { display: grid; gap: 2px; }
+
+    .gr-mobile-table { border-collapse: separate; border-spacing: 0 10px; }
+    .gr-mobile-table thead { display: none; }
+    .gr-mobile-table tbody tr {
+      display: block;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background: #fff;
+      padding: 8px 10px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    }
+    .gr-mobile-table tbody td {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border: 0 !important;
+      padding: 4px 0 !important;
+      text-align: right !important;
+      white-space: normal !important;
+      font-size: 13px;
+    }
+    .gr-mobile-table tbody td::before {
+      content: attr(data-label);
+      flex: 0 0 88px;
+      text-align: left;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .gr-mobile-table tbody td.gr-primary-cell {
+      display: block;
+      text-align: left !important;
+      border-bottom: 1px dashed #e2e8f0 !important;
+      padding-bottom: 6px !important;
+      margin-bottom: 4px;
+    }
+    .gr-mobile-table tbody td.gr-primary-cell::before { content: ""; display: none; }
+    .gr-mobile-table .btn-sm {
+      min-width: 72px;
+      padding: 6px 10px;
+      font-weight: 800;
+    }
+    .gr-kpi-grid { gap: 8px; }
+    .gr-kpi-card { min-height: 58px; padding: 10px 12px; }
+    .gr-kpi-value { font-size: 18px; }
+    .gr-kpi-icon { width: 34px; height: 34px; font-size: 18px; }
+  }
+
 </style>
 {% endblock %}
 
@@ -287,29 +365,22 @@
       Sau khi scan đủ SKU trên pallet, bấm <b>Hoàn tất PA</b> để chuyển PA sang Put Away.
       Nếu PA chỉ có 1 SKU: Lưu SKU → Hoàn tất PA.
     </div>
-
-    <div class="gr-quick-panel">
-      <button id="openPoDetailSheetBtn" type="button" class="btn btn-outline-primary gr-quick-btn">📋 Đối chiếu PO</button>
-      <button id="openHistorySheetBtn" type="button" class="btn btn-outline-primary gr-quick-btn">🧾 PA đã GR</button>
-    </div>
-
   </div>
 </div>
 
-<div id="poDetailSheet" class="gr-sheet-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="poDetailSheetTitle">
+<div id="poDetailSheet" class="gr-inline-section" aria-labelledby="poDetailSheetTitle">
   <div class="gr-sheet">
     <div class="gr-sheet-header">
       <div>
         <h5 id="poDetailSheetTitle" class="gr-sheet-title">📋 Đối chiếu PO detail</h5>
         <div class="gr-sheet-subtitle" id="poDetailSubtitle">Scan PO để xem SKU cần nhập.</div>
       </div>
-      <button type="button" class="btn btn-light border gr-sheet-close" data-sheet-close="poDetailSheet">Đóng</button>
     </div>
     <div class="gr-sheet-body">
 
   <div class="card-body">
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0 gr-table">
+      <table class="table table-sm align-middle mb-0 gr-table gr-mobile-table">
         <thead>
           <tr>
             <th>SKU</th>
@@ -380,19 +451,18 @@
   </div>
 </div>
 
-<div id="historySheet" class="gr-sheet-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="historySheetTitle">
+<div id="historySheet" class="gr-inline-section" aria-labelledby="historySheetTitle">
   <div class="gr-sheet">
     <div class="gr-sheet-header">
       <div>
         <h5 id="historySheetTitle" class="gr-sheet-title">🧾 Danh sách PA đã GR</h5>
         <div class="gr-sheet-subtitle" id="historySubtitle">Chưa chọn PO</div>
       </div>
-      <button type="button" class="btn btn-light border gr-sheet-close" data-sheet-close="historySheet">Đóng</button>
     </div>
     <div class="gr-sheet-body">
 
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0 gr-table">
+      <table class="table table-sm align-middle mb-0 gr-table gr-mobile-table">
         <thead>
           <tr>
             <th>PA</th>
@@ -420,7 +490,7 @@
   </div>
 </div>
 
-<div id="editGrBox" class="gr-sheet-backdrop d-none" role="dialog" aria-modal="true" aria-labelledby="editGrSheetTitle">
+<div id="editGrBox" class="gr-inline-section d-none" aria-labelledby="editGrSheetTitle">
   <div class="gr-sheet">
     <div class="gr-sheet-header">
       <div>
