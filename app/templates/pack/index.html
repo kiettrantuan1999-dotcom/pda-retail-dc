@@ -78,21 +78,12 @@
   </div>
 </div>
 
-<div id="scannerBox" class="scanner-box card mb-3 d-none">
-  <div class="card-body">
-    <div class="fw-bold mb-2">Đưa mã phiếu vào khung camera</div>
-
-    <video
-      id="scannerVideo"
-      style="width: 100%; border-radius: 8px; background: #000;"
-      playsinline
-      muted
-    ></video>
-
-    <button type="button" class="btn btn-danger w-100 mt-2" id="closeScannerBtn">
-      Đóng camera
-    </button>
+<div id="scannerBox" class="scanner-modal d-none">
+  <div class="scanner-header">
+    <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
+    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
   </div>
+  <div id="reader" class="scanner-reader"></div>
 </div>
 
 <div id="resultBox" class="alert d-none"></div>
@@ -173,8 +164,38 @@
   <source src="/static/sound/success.mp3" type="audio/mpeg">
 </audio>
 
-<script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/index.min.js"></script>
-<script src="/static/js/scanner_zxing.js"></script>
-<script src="/static/js/pack.js"></script>
+<style>
+  .scanner-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scanner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(0,0,0,.85);
+  }
+
+  .scanner-reader {
+    flex: 1;
+    width: 100%;
+  }
+
+  .scanner-reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+</style>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="/static/js/pack.js?v=53.2"></script>
 
 {% endblock %}

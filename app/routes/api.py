@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services import warehouse_service as svc
@@ -29,10 +29,22 @@ def fail(e: Exception):
 @router.get("/gr/product/{barcode}")
 def gr_product_info(
     barcode: str,
+    po_no: str = Query(""),
     db: Session = Depends(get_db),
 ):
     try:
-        return ok(svc.get_product_scan_info(db, barcode.strip()))
+        return ok(svc.get_product_scan_info(db, barcode.strip(), po_no=po_no.strip()))
+    except Exception as e:
+        return fail(e)
+
+
+@router.get("/gr/po/{po_no}")
+def gr_po_detail(
+    po_no: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return ok(svc.get_gr_po_detail_summary(db, po_no.strip()))
     except Exception as e:
         return fail(e)
 

@@ -3,6 +3,30 @@
 
 {% block styles %}
 <style>
+  .gr-page-shell { max-width: 1480px; margin: 0 auto; }
+  .gr-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .gr-title-wrap { display: flex; align-items: center; gap: 12px; }
+  .gr-back-btn { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; text-decoration: none; }
+  .gr-action-bar { display: flex; gap: 8px; }
+  .gr-card { border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 18px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08); }
+  .gr-section-title { font-weight: 800; color: #0f172a; }
+  .gr-table th { white-space: nowrap; color: #0f172a; font-weight: 800; border-bottom-color: #d9e2ef; }
+  .gr-table td { vertical-align: middle; }
+  .gr-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+  .gr-kpi-card { display: flex; align-items: center; gap: 14px; min-height: 78px; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+  .gr-kpi-icon { width: 42px; height: 42px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; background: #eff6ff; }
+  .gr-kpi-label { font-size: 13px; color: #64748b; font-weight: 600; }
+  .gr-kpi-value { font-size: 22px; line-height: 1.1; font-weight: 900; color: #0f172a; }
+  .gr-scan-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1fr); gap: 16px; }
+  .gr-result-success { border-left: 5px solid #22c55e; }
+  .gr-complete-modal-backdrop { position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.34); padding: 16px; }
+  .gr-complete-modal-backdrop.d-none { display: none !important; }
+  .gr-complete-modal { width: min(620px, 100%); background: #fff; border-radius: 18px; box-shadow: 0 24px 80px rgba(15, 23, 42, 0.26); padding: 24px; }
+  .gr-complete-title { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 8px; }
+  .gr-modal-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+  .gr-modal-kpi { border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px; background: #eff6ff; }
+  .gr-modal-kpi:nth-child(2) { border-color: #bbf7d0; background: #f0fdf4; }
+  @media (max-width: 768px) { .gr-topbar { align-items: stretch; flex-direction: column; } .gr-action-bar { width: 100%; } .gr-action-bar .btn { flex: 1; } .gr-kpi-grid, .gr-scan-grid, .gr-modal-kpis { grid-template-columns: 1fr; } }
   .scanner-modal {
     position: fixed;
     inset: 0;
@@ -81,13 +105,23 @@
 {% endblock %}
 
 {% block content %}
+<div class="gr-page-shell">
 
-<div class="mb-3">
-  <h4 class="fw-bold mb-1">📦 Nhận hàng - GR</h4>
-  <div class="text-muted small">1 PO có thể có nhiều PA; 1 PA có thể chứa nhiều SKU. Scan cùng PA nhiều lần để thêm nhiều SKU vào pallet.</div>
+<div class="gr-topbar">
+  <div class="gr-title-wrap">
+    <a href="/" class="btn btn-light border gr-back-btn">←</a>
+    <div>
+      <h4 class="fw-bold mb-1">Nhận hàng (GR)</h4>
+      <div class="text-muted small">Scan PO → gán PA → scan barcode SKU. Một PO có thể có nhiều PA, một PA có thể chứa nhiều SKU.</div>
+    </div>
+  </div>
+  <div class="gr-action-bar">
+    <button id="clearGrBtn" type="button" class="btn btn-outline-secondary">🗑 Xóa thông tin</button>
+    <button id="completePaTopBtn" type="button" class="btn btn-primary">✓ Hoàn tất PA</button>
+  </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card gr-card shadow-sm">
   <div class="card-body">
 
     <form id="grForm">
@@ -236,6 +270,56 @@
   </div>
 </div>
 
+<div class="card mt-3 gr-card shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <h6 class="gr-section-title mb-0">Đối chiếu PO detail trung tâm đặt hàng</h6>
+        <div class="text-muted small" id="poDetailSubtitle">Scan PO để xem SKU cần nhập.</div>
+      </div>
+      <button id="reloadPoDetailBtn" class="btn btn-sm btn-outline-secondary" type="button">Tải lại</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0 gr-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Barcode</th>
+            <th class="text-end">SL đặt hàng</th>
+            <th class="text-end">SL thùng chẵn</th>
+            <th class="text-end">SL kiện lẻ</th>
+            <th class="text-end">Tổng SL</th>
+            <th>Trạng thái</th>
+            <th>Ghi chú</th>
+            <th class="text-end">Đã nhập</th>
+          </tr>
+        </thead>
+        <tbody id="poDetailBody">
+          <tr>
+            <td colspan="9" class="text-muted small">Scan PO để đối chiếu dữ liệu PO detail.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="poSummaryCards" class="gr-kpi-grid d-none">
+      <div class="gr-kpi-card">
+        <div class="gr-kpi-icon">🧊</div>
+        <div><div class="gr-kpi-label">Tổng số SKU</div><div class="gr-kpi-value" id="poTotalSkuCard">0</div></div>
+      </div>
+      <div class="gr-kpi-card">
+        <div class="gr-kpi-icon">📦</div>
+        <div><div class="gr-kpi-label">Tổng SL đặt hàng</div><div class="gr-kpi-value" id="poTotalOrderCard">0</div></div>
+      </div>
+      <div class="gr-kpi-card">
+        <div class="gr-kpi-icon">📋</div>
+        <div><div class="gr-kpi-label">Tổng SL đã nhập</div><div class="gr-kpi-value" id="poTotalReceivedCard">0</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="scannerBox" class="scanner-modal d-none">
   <div class="scanner-header">
     <div>
@@ -255,14 +339,14 @@
   </div>
 </div>
 
-<div id="resultBox" class="card mt-3 d-none">
+<div id="resultBox" class="card mt-3 gr-card d-none">
   <div class="card-body">
     <h5 id="resultTitle" class="fw-bold mb-2"></h5>
     <div id="resultText" class="small"></div>
   </div>
 </div>
 
-<div class="card mt-3 shadow-sm">
+<div class="card mt-3 gr-card shadow-sm">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <div>
@@ -273,7 +357,7 @@
     </div>
 
     <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
+      <table class="table table-sm align-middle mb-0 gr-table">
         <thead>
           <tr>
             <th>PA</th>
@@ -357,6 +441,33 @@
   <a href="/" class="btn btn-outline-secondary w-100">⬅ Về Home</a>
 </div>
 
+<div id="completePaModal" class="gr-complete-modal-backdrop d-none" role="dialog" aria-modal="true">
+  <div class="gr-complete-modal">
+    <div class="gr-complete-title"><span>⚠️</span><span>Xác nhận hoàn tất PA</span></div>
+    <div class="text-muted mb-1">Bạn có chắc chắn muốn hoàn tất PA này?</div>
+    <div class="text-muted">Sau khi hoàn tất, PA sẽ chuyển sang trạng thái PUTAWAY.</div>
+
+    <div class="gr-modal-kpis">
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng số SKU</div>
+        <div class="gr-kpi-value" id="completeModalTotalSku">0</div>
+      </div>
+      <div class="gr-modal-kpi">
+        <div class="gr-kpi-label">Tổng số lượng GR</div>
+        <div class="gr-kpi-value" id="completeModalTotalQty">0</div>
+      </div>
+    </div>
+
+    <div class="text-danger small fw-semibold mb-4">⚠️ Lưu ý: Không thể chỉnh sửa sau khi hoàn tất.</div>
+
+    <div class="d-flex justify-content-end gap-2">
+      <button id="cancelCompletePaModalBtn" type="button" class="btn btn-outline-secondary px-4">Hủy</button>
+      <button id="confirmCompletePaModalBtn" type="button" class="btn btn-primary px-4">Xác nhận hoàn tất</button>
+    </div>
+  </div>
+</div>
+
+</div>
 {% endblock %}
 
 {% block scripts %}

@@ -25,7 +25,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 MAX_IMPORT_BYTES = 15 * 1024 * 1024
-BATCH_SIZE = 500
+BATCH_SIZE = 2000
 
 
 @router.get("/master-data/import")
@@ -558,7 +558,8 @@ async def import_po_detail(file: UploadFile = File(...), db: Session = Depends(g
         }
         require_cols(df, list(col_map.keys()))
 
-        # Aggregate duplicate PO + SKU lines instead of using file columns as a unique key.
+        # Aggregate duplicate PO + SKU lines before touching DB.
+        # Đây là điểm giảm lag chính: không query/update DB từng dòng raw Excel.
         grouped = {}
         skipped = 0
         for _, row in df.iterrows():
@@ -580,35 +581,47 @@ async def import_po_detail(file: UploadFile = File(...), db: Session = Depends(g
                 }
             grouped[key]["qty_order"] += qty_order
 
-        # Xóa các dòng DO cũ còn WAIT_PICK của cùng cửa hàng nhưng không nằm trong file upload mới.
-        # Nếu không xóa, phiếu store picking sẽ lấy cả dữ liệu cũ và gây duplicate SKU trên phiếu in.
-        current_keys = set(grouped.keys())
-        stale_deleted = 0
-        for store_id in store_set:
-            old_rows = db.query(DoDetail).filter(DoDetail.store_id == store_id, DoDetail.status == "WAIT_PICK").all()
-            for old in old_rows:
-                old_key = ((old.do_no or "").strip(), (old.store_id or "").strip(), (old.sku or "").strip().upper())
-                if old_key not in current_keys:
-                    db.delete(old)
-                    stale_deleted += 1
-        if stale_deleted:
-            db.flush()
+        keys = list(grouped.keys())
+        po_set = {po for po, _ in keys}
+        existing_map = {}
+        if po_set:
+            existing_rows = db.query(PoDetail).filter(PoDetail.po_no.in_(list(po_set))).all()
+            existing_map = {(r.po_no, r.sku): r for r in existing_rows}
 
         inserted = updated = 0
         duplicate = max(len(df) - skipped - len(grouped), 0)
-        for row in grouped.values():
-            existing = db.query(PoDetail).filter(PoDetail.po_no == row["po_no"], PoDetail.sku == row["sku"]).first()
+        now = datetime.utcnow()
+
+        for key, row in grouped.items():
+            existing = existing_map.get(key)
             if existing:
                 existing.barcode = row["barcode"]
                 existing.product_name = row["product_name"]
                 existing.qty_order = row["qty_order"]
-                existing.qty_remaining = max(row["qty_order"] - existing.qty_received, 0)
-                existing.status = "DONE" if existing.qty_remaining == 0 else "WAIT_GR"
-                existing.last_update = datetime.utcnow()
+                existing.qty_remaining = max(row["qty_order"] - int(existing.qty_received or 0), 0)
+                if int(existing.qty_received or 0) > row["qty_order"]:
+                    existing.status = "DƯ"
+                elif int(existing.qty_received or 0) == row["qty_order"]:
+                    existing.status = "ĐỦ"
+                else:
+                    existing.status = "WAIT_GR"
+                existing.last_update = now
                 updated += 1
             else:
-                db.add(PoDetail(po_no=row["po_no"], sku=row["sku"], barcode=row["barcode"], product_name=row["product_name"], qty_order=row["qty_order"], qty_received=0, qty_remaining=row["qty_order"], status="WAIT_GR"))
+                db.add(PoDetail(
+                    po_no=row["po_no"],
+                    sku=row["sku"],
+                    barcode=row["barcode"],
+                    product_name=row["product_name"],
+                    qty_order=row["qty_order"],
+                    qty_received=0,
+                    qty_remaining=row["qty_order"],
+                    status="WAIT_GR",
+                    created_at=now,
+                    last_update=now,
+                ))
                 inserted += 1
+
             commit_batch(db, inserted + updated)
 
         db.commit()
@@ -660,19 +673,7 @@ async def import_do_detail(file: UploadFile = File(...), db: Session = Depends(g
             do_set.add(do_no)
             store_set.add(store_id)
 
-        # Xóa các dòng DO cũ còn WAIT_PICK của cùng cửa hàng nhưng không nằm trong file upload mới.
-        # Nếu không xóa, phiếu store picking sẽ lấy cả dữ liệu cũ và gây duplicate SKU trên phiếu in.
-        current_keys = set(grouped.keys())
-        stale_deleted = 0
-        for store_id in store_set:
-            old_rows = db.query(DoDetail).filter(DoDetail.store_id == store_id, DoDetail.status == "WAIT_PICK").all()
-            for old in old_rows:
-                old_key = ((old.do_no or "").strip(), (old.store_id or "").strip(), (old.sku or "").strip().upper())
-                if old_key not in current_keys:
-                    db.delete(old)
-                    stale_deleted += 1
-        if stale_deleted:
-            db.flush()
+        # PO detail không dùng logic xóa stale của DO. Giữ các PO khác để không làm mất lịch sử nhập hàng.
 
         inserted = updated = 0
         duplicate = max(len(df) - skipped - len(grouped), 0)

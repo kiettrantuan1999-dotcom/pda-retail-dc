@@ -26,6 +26,20 @@ document.addEventListener("DOMContentLoaded", function () {
   const historyBody = document.getElementById("grHistoryBody");
   const reloadHistoryBtn = document.getElementById("reloadHistoryBtn");
   const completePaBtn = document.getElementById("completePaBtn");
+  const poDetailSubtitle = document.getElementById("poDetailSubtitle");
+  const poDetailBody = document.getElementById("poDetailBody");
+  const reloadPoDetailBtn = document.getElementById("reloadPoDetailBtn");
+  const poSummaryCards = document.getElementById("poSummaryCards");
+  const poTotalSkuCard = document.getElementById("poTotalSkuCard");
+  const poTotalOrderCard = document.getElementById("poTotalOrderCard");
+  const poTotalReceivedCard = document.getElementById("poTotalReceivedCard");
+  const completePaTopBtn = document.getElementById("completePaTopBtn");
+  const clearGrBtn = document.getElementById("clearGrBtn");
+  const completePaModal = document.getElementById("completePaModal");
+  const completeModalTotalSku = document.getElementById("completeModalTotalSku");
+  const completeModalTotalQty = document.getElementById("completeModalTotalQty");
+  const cancelCompletePaModalBtn = document.getElementById("cancelCompletePaModalBtn");
+  const confirmCompletePaModalBtn = document.getElementById("confirmCompletePaModalBtn");
 
   const editGrBox = document.getElementById("editGrBox");
   const editGrForm = document.getElementById("editGrForm");
@@ -57,6 +71,8 @@ document.addEventListener("DOMContentLoaded", function () {
   let lastDecodedAt = 0;
   let currentProduct = null;
   let grHistoryRows = {};
+  let latestPoSummary = null;
+  let pendingCompletePa = null;
   let suppressAutoScanUntil = 0;
 
   poInput.focus();
@@ -94,10 +110,13 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  function moveNextOnEnter(current, next) {
+  function moveNextOnEnter(current, next, beforeMove) {
     current.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
+        if (typeof beforeMove === "function") {
+          beforeMove();
+        }
         if (next) {
           next.focus();
           if (next.select) next.select();
@@ -106,7 +125,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  moveNextOnEnter(poInput, palletInput);
+  moveNextOnEnter(poInput, palletInput, function () { loadHistory(); loadPoDetail(); });
   moveNextOnEnter(palletInput, barcodeInput);
   moveNextOnEnter(barcodeInput, cartonQtyInput);
   moveNextOnEnter(cartonQtyInput, looseQtyInput);
@@ -119,11 +138,40 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  poInput.addEventListener("change", loadHistory);
-  poInput.addEventListener("blur", loadHistory);
+  let poLoadTimer = null;
+  function schedulePoLoad() {
+    clearTimeout(poLoadTimer);
+    poLoadTimer = setTimeout(function () {
+      loadHistory();
+      loadPoDetail();
+    }, 250);
+  }
+
+  poInput.addEventListener("input", schedulePoLoad);
+  poInput.addEventListener("change", function () { loadHistory(); loadPoDetail(); });
+  poInput.addEventListener("blur", function () { loadHistory(); loadPoDetail(); });
   barcodeInput.addEventListener("change", loadProductInfo);
   barcodeInput.addEventListener("blur", loadProductInfo);
   reloadHistoryBtn.addEventListener("click", loadHistory);
+  if (reloadPoDetailBtn) reloadPoDetailBtn.addEventListener("click", loadPoDetail);
+  if (completePaTopBtn && completePaBtn) {
+    completePaTopBtn.addEventListener("click", function () { completePaBtn.click(); });
+  }
+  if (clearGrBtn) {
+    clearGrBtn.addEventListener("click", function () {
+      poInput.value = "";
+      palletInput.value = "";
+      barcodeInput.value = "";
+      cartonQtyInput.value = "0";
+      looseQtyInput.value = "0";
+      qtyPromoInput.value = "0";
+      clearProductInfo();
+      renderPoDetail(null);
+      renderHistory([]);
+      resultBox.classList.add("d-none");
+      poInput.focus();
+    });
+  }
 
   function getNextInput(targetInput) {
     if (targetInput.id === "po_no") return palletInput;
@@ -184,7 +232,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const res = await fetch(`/api/gr/product/${encodeURIComponent(barcode)}`);
+      const poNo = poInput.value.trim();
+      const url = poNo
+        ? `/api/gr/product/${encodeURIComponent(barcode)}?po_no=${encodeURIComponent(poNo)}`
+        : `/api/gr/product/${encodeURIComponent(barcode)}`;
+      const res = await fetch(url);
       const data = await res.json();
 
       if (!data.ok) {
@@ -284,6 +336,41 @@ function escapeHtml(value) {
       .replace(/'/g, "&#039;");
   }
 
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString("vi-VN");
+  }
+
+  function getCurrentPaSummary(poNo, palletId) {
+    const rows = Object.values(grHistoryRows || {}).filter(function (r, idx, arr) {
+      return r
+        && String(r.po_no || poNo || "") === String(poNo || "")
+        && String(r.pallet_id || "").toUpperCase() === String(palletId || "").toUpperCase()
+        && arr.findIndex(function (x) { return String(x.queue_id) === String(r.queue_id); }) === idx;
+    });
+
+    return {
+      totalSku: rows.length,
+      totalQty: rows.reduce(function (sum, r) { return sum + Number(r.qty_total || r.qty_gr || 0); }, 0)
+    };
+  }
+
+  function openCompleteModal(poNo, palletId) {
+    if (!completePaModal) return false;
+
+    const summary = getCurrentPaSummary(poNo, palletId);
+    pendingCompletePa = { poNo: poNo, palletId: palletId, totalSku: summary.totalSku, totalQty: summary.totalQty };
+
+    if (completeModalTotalSku) completeModalTotalSku.innerText = formatNumber(summary.totalSku);
+    if (completeModalTotalQty) completeModalTotalQty.innerText = formatNumber(summary.totalQty);
+    completePaModal.classList.remove("d-none");
+    return true;
+  }
+
+  function closeCompleteModal() {
+    pendingCompletePa = null;
+    if (completePaModal) completePaModal.classList.add("d-none");
+  }
+
   function renderHistory(rows) {
     const po = poInput.value.trim();
     historySubtitle.innerText = po ? `PO: ${po} · ${rows.length} PA đã GR` : "Chưa chọn PO";
@@ -341,6 +428,80 @@ function escapeHtml(value) {
         openEditGr(row);
       });
     });
+  }
+
+  function statusBadge(status) {
+    const clean = String(status || "").toUpperCase();
+    if (clean === "ĐỦ") return "text-bg-success";
+    if (clean === "DƯ") return "text-bg-danger";
+    return "text-bg-warning";
+  }
+
+  function renderPoDetail(summary) {
+    if (!poDetailBody || !poDetailSubtitle) return;
+
+    if (!summary || !summary.rows || !summary.rows.length) {
+      latestPoSummary = null;
+      if (poSummaryCards) poSummaryCards.classList.add("d-none");
+      poDetailSubtitle.innerText = "Scan PO để xem SKU cần nhập.";
+      poDetailBody.innerHTML = `
+        <tr><td colspan="9" class="text-muted small">Chưa có dữ liệu PO detail.</td></tr>
+      `;
+      return;
+    }
+
+    latestPoSummary = summary;
+    if (poSummaryCards) poSummaryCards.classList.remove("d-none");
+    if (poTotalSkuCard) poTotalSkuCard.innerText = formatNumber(summary.total_sku);
+    if (poTotalOrderCard) poTotalOrderCard.innerText = formatNumber(summary.total_order);
+    if (poTotalReceivedCard) poTotalReceivedCard.innerText = formatNumber(summary.total_received);
+
+    poDetailSubtitle.innerText = `PO: ${summary.po_no} · SKU: ${summary.total_sku} · Đặt: ${summary.total_order} · Đã nhập: ${summary.total_received} · ${summary.status}`;
+
+    poDetailBody.innerHTML = summary.rows.map(function (r) {
+      return `
+        <tr>
+          <td class="fw-semibold text-nowrap">${escapeHtml(r.sku || "")}</td>
+          <td class="text-nowrap">${escapeHtml(r.barcode || "")}</td>
+          <td class="text-end">${Number(r.qty_order || 0)}</td>
+          <td class="text-end">${Number(r.carton_qty || 0)}</td>
+          <td class="text-end">${Number(r.loose_qty || 0)}</td>
+          <td class="text-end fw-semibold">${Number(r.qty_total || 0)}</td>
+          <td><span class="badge ${statusBadge(r.status)}">${escapeHtml(r.status || "")}</span></td>
+          <td class="small">${escapeHtml(r.note || "")}</td>
+          <td class="text-end fw-semibold">${Number(r.qty_total || 0)}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function loadPoDetail() {
+    if (!poDetailBody || !poDetailSubtitle) return;
+
+    const po = poInput.value.trim();
+    if (!po) {
+      renderPoDetail(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gr/po/${encodeURIComponent(po)}`);
+      const data = await res.json();
+
+      if (!data.ok) {
+        poDetailSubtitle.innerText = `PO: ${po}`;
+        poDetailBody.innerHTML = `
+          <tr><td colspan="9" class="text-danger small">${escapeHtml(data.error || "Không tải được PO detail")}</td></tr>
+        `;
+        return;
+      }
+
+      renderPoDetail(data.data);
+    } catch (err) {
+      poDetailBody.innerHTML = `
+        <tr><td colspan="9" class="text-danger small">${escapeHtml(err.message)}</td></tr>
+      `;
+    }
   }
 
   async function loadHistory() {
@@ -565,6 +726,7 @@ function restoreManualInput(targetInput) {
 
       if (currentInput.id === "po_no") {
         loadHistory();
+        loadPoDetail();
       }
 
       if (currentInput.id === "barcode") {
@@ -619,6 +781,66 @@ function restoreManualInput(targetInput) {
   });
 
 
+  async function submitCompletePa(poNo, palletId) {
+    const formData = new FormData();
+    formData.append("po_no", poNo);
+    formData.append("pallet_id", palletId);
+
+    try {
+      completePaBtn.disabled = true;
+      if (completePaTopBtn) completePaTopBtn.disabled = true;
+      completePaBtn.innerText = "ĐANG HOÀN TẤT PA...";
+      if (completePaTopBtn) completePaTopBtn.innerText = "Đang hoàn tất...";
+
+      const res = await fetch("/api/gr/complete-pa", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        return showError(data.error || "Không hoàn tất được PA");
+      }
+
+      resultBox.classList.remove("d-none");
+      resultBox.classList.add("gr-result-success");
+      resultTitle.innerText = "✅ Đã hoàn tất PA";
+      resultTitle.className = "fw-bold mb-2 text-success";
+      resultText.innerHTML = `
+        <div><b>PO:</b> ${escapeHtml(data.data.po_no)}</div>
+        <div><b>PA:</b> ${escapeHtml(data.data.pallet_id)}</div>
+        <div><b>Tổng số lượng SKU GR:</b> ${formatNumber(data.data.total_sku)}</div>
+        <div><b>Tổng số lượng GR:</b> ${formatNumber(data.data.total_qty)}</div>
+        <div><b>Status:</b> ${escapeHtml(data.data.flow_status)}</div>
+        <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away.</div>
+      `;
+
+      await loadHistory();
+      await loadPoDetail();
+
+      palletInput.value = "";
+      barcodeInput.value = "";
+      cartonQtyInput.value = "0";
+      looseQtyInput.value = "0";
+      qtyPromoInput.value = "0";
+      clearProductInfo();
+      recalcQtyPreview();
+
+      setTimeout(function () {
+        palletInput.focus();
+        if (palletInput.select) palletInput.select();
+      }, 100);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      completePaBtn.disabled = false;
+      if (completePaTopBtn) completePaTopBtn.disabled = false;
+      completePaBtn.innerText = "✅ HOÀN TẤT PA";
+      if (completePaTopBtn) completePaTopBtn.innerText = "✓ Hoàn tất PA";
+    }
+  }
+
   if (completePaBtn) {
     completePaBtn.addEventListener("click", async function () {
       const poNo = poInput.value.trim();
@@ -627,58 +849,33 @@ function restoreManualInput(targetInput) {
       if (!poNo) return showError("Vui lòng nhập/scan PO trước khi hoàn tất PA");
       if (!palletId) return showError("Vui lòng nhập/scan PA trước khi hoàn tất PA");
 
-      const formData = new FormData();
-      formData.append("po_no", poNo);
-      formData.append("pallet_id", palletId);
-
-      try {
-        completePaBtn.disabled = true;
-        completePaBtn.innerText = "ĐANG HOÀN TẤT PA...";
-
-        const res = await fetch("/api/gr/complete-pa", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await res.json();
-
-        if (!data.ok) {
-          return showError(data.error || "Không hoàn tất được PA");
-        }
-
-        resultBox.classList.remove("d-none");
-        resultTitle.innerText = "✅ Đã hoàn tất PA";
-        resultTitle.className = "fw-bold mb-2 text-success";
-        resultText.innerHTML = `
-          <div><b>PO:</b> ${data.data.po_no}</div>
-          <div><b>PA:</b> ${data.data.pallet_id}</div>
-          <div><b>Tổng SKU:</b> ${data.data.total_sku}</div>
-          <div><b>Tổng SL:</b> ${data.data.total_qty}</div>
-          <div><b>Status:</b> ${data.data.flow_status}</div>
-          <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away.</div>
-        `;
-
-        await loadHistory();
-
-        // Giữ PO để scan PA tiếp theo của cùng PO, clear PA/SKU hiện tại.
-        palletInput.value = "";
-        barcodeInput.value = "";
-        cartonQtyInput.value = "0";
-        looseQtyInput.value = "0";
-        qtyPromoInput.value = "0";
-        clearProductInfo();
-        recalcQtyPreview();
-
-        setTimeout(function () {
-          palletInput.focus();
-          if (palletInput.select) palletInput.select();
-        }, 100);
-      } catch (err) {
-        showError(err.message);
-      } finally {
-        completePaBtn.disabled = false;
-        completePaBtn.innerText = "✅ HOÀN TẤT PA";
+      await loadHistory();
+      const currentSummary = getCurrentPaSummary(poNo, palletId);
+      if (currentSummary.totalSku <= 0 || currentSummary.totalQty <= 0) {
+        return showError("PA chưa có SKU hoặc số lượng GR, không thể hoàn tất");
       }
+
+      openCompleteModal(poNo, palletId);
+    });
+  }
+
+  if (cancelCompletePaModalBtn) {
+    cancelCompletePaModalBtn.addEventListener("click", closeCompleteModal);
+  }
+
+  if (completePaModal) {
+    completePaModal.addEventListener("click", function (e) {
+      if (e.target === completePaModal) closeCompleteModal();
+    });
+  }
+
+  if (confirmCompletePaModalBtn) {
+    confirmCompletePaModalBtn.addEventListener("click", async function () {
+      if (!pendingCompletePa) return closeCompleteModal();
+      const poNo = pendingCompletePa.poNo;
+      const palletId = pendingCompletePa.palletId;
+      closeCompleteModal();
+      await submitCompletePa(poNo, palletId);
     });
   }
 
@@ -733,6 +930,7 @@ function restoreManualInput(targetInput) {
 
         editGrBox.classList.add("d-none");
         await loadHistory();
+        await loadPoDetail();
       } catch (err) {
         showError(err.message);
       }
@@ -803,6 +1001,7 @@ function restoreManualInput(targetInput) {
         clearProductInfo();
 
         await loadHistory();
+        await loadPoDetail();
 
         setTimeout(function () {
           barcodeInput.focus();

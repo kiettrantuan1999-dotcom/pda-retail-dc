@@ -19,21 +19,33 @@
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">
-        <form method="get" action="/staging">
+        <form id="stagingScanForm" method="get" action="/staging">
             <label class="form-label fw-bold">Scan / nhập mã phiếu lấy hàng</label>
             <div class="input-group input-group-lg">
                 <input
+                    id="staging_do_no"
                     name="do_no"
                     class="form-control"
                     value="{{ do_no }}"
                     placeholder="Ví dụ: 30062026-0000002ACV-C hoặc 30062026-0000002ACV-L"
+                    autocomplete="off"
                     autofocus
                 >
+                <button id="scanStagingBtn" class="btn btn-dark" type="button">📷</button>
                 <button class="btn btn-primary" type="submit">Tìm</button>
             </div>
             <div class="form-text">Scan barcode trên Picking List. Hệ thống sẽ tự gom cả phiếu chẵn/lẻ của cùng cửa hàng.</div>
         </form>
     </div>
+</div>
+
+
+<div id="scannerBox" class="scanner-modal d-none">
+    <div class="scanner-header">
+        <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
+        <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+    </div>
+    <div id="reader" class="scanner-reader"></div>
 </div>
 
 {% if summary %}
@@ -214,5 +226,40 @@
         </table>
     </div>
 </div>
+
+
+<style>
+  .scanner-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scanner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(0,0,0,.85);
+  }
+
+  .scanner-reader {
+    flex: 1;
+    width: 100%;
+  }
+
+  .scanner-reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+</style>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="/static/js/staging_scan.js?v=53.2"></script>
 
 {% endblock %}
