@@ -1,37 +1,51 @@
 {% extends "base.html" %}
+{% block title %}Tồn kho / Kiểm kê | Supra WMS{% endblock %}
 {% block content %}
 
-<div class="mb-3">
-  <h4 class="fw-bold mb-0">📊 Tồn kho / Kiểm kê</h4>
-  <div class="text-muted">Tra cứu tồn, tạo đợt kiểm kê, PDA kiểm kê vị trí</div>
-</div>
-
-<div class="row g-3">
-  <div class="col-12">
-    <a href="/inventory/inquiry" class="btn btn-info pda-menu">
-      🔎<br>TRA CỨU TỒN
-    </a>
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-inventory">
+    <a href="/" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Inventory Control</span>
+      <h4>Tồn kho / Kiểm kê</h4>
+      <p>Tra cứu tồn theo SKU/vị trí, tạo đợt kiểm kê và scan kiểm kê thực tế.</p>
+    </div>
   </div>
 
-  <div class="col-12">
-    <a href="/inventory/counts" class="btn btn-warning pda-menu">
-      🧮<br>DANH SÁCH KIỂM KÊ
+  <div class="wes-section-label">Tác vụ chính</div>
+  <div class="wes-task-list">
+    <a href="/inventory/inquiry" class="wes-task-card task-cyan">
+      <span class="wes-task-icon">🔎</span>
+      <span class="wes-task-main"><strong>Tra cứu tồn</strong><small>Kiểm tra tồn theo SKU, barcode hoặc vị trí</small></span>
+      <span class="wes-task-badge">LOOKUP</span>
+      <span class="wes-task-arrow">›</span>
     </a>
+
+    <a href="/inventory/counts" class="wes-task-card task-amber">
+      <span class="wes-task-icon">🧮</span>
+      <span class="wes-task-main"><strong>Danh sách kiểm kê</strong><small>Mở đợt kiểm kê và scan vị trí</small></span>
+      <span class="wes-task-badge">COUNT</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+
+    {% if can_supervisor %}
+    <a href="/inventory/counts/new" class="wes-task-card task-blue">
+      <span class="wes-task-icon">＋</span>
+      <span class="wes-task-main"><strong>Tạo đợt kiểm kê</strong><small>Supervisor tạo cycle count theo khu/vị trí</small></span>
+      <span class="wes-task-badge">NEW</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+    {% endif %}
   </div>
 
-  {% if can_supervisor %}
-  <div class="col-12">
-    <a href="/inventory/counts/new" class="btn btn-primary pda-menu">
-      ➕<br>TẠO ĐỢT KIỂM KÊ
-    </a>
+  <div class="wes-section-label mt-3">Nguyên tắc thao tác</div>
+  <div class="wes-guidance-card">
+    <div><strong>01</strong><span>Tra cứu trước khi điều chỉnh tồn.</span></div>
+    <div><strong>02</strong><span>Scan đúng vị trí thực tế, không nhập tay nếu còn quét được.</span></div>
+    <div><strong>03</strong><span>Lệch tồn phải ghi chú rõ nguyên nhân để Audit truy vết.</span></div>
   </div>
-  {% endif %}
 
-  <div class="col-12">
-    <a href="/" class="btn btn-outline-secondary pda-menu">
-      ⬅<br>VỀ HOME
-    </a>
-  </div>
-</div>
+  <a href="/" class="btn btn-secondary btn-lg w-100 mt-3">Về trang chủ</a>
+</section>
 
 {% endblock %}

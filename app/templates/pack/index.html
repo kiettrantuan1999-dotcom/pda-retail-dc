@@ -11,14 +11,20 @@
     </div>
   </div>
 
+  <div class="wes-flow-steps mb-3">
+    <div class="active"><strong>1</strong><span>Scan phiếu</span></div>
+    <div><strong>2</strong><span>Kiểm SKU/SL</span></div>
+    <div><strong>3</strong><span>Nhập picker & kiện</span></div>
+  </div>
+
   <div class="wes-action-form mb-3">
     <label class="wes-big-label">Mã phiếu lấy hàng</label>
     <div class="input-group input-group-lg mb-3">
-      <input id="do_no" class="form-control form-control-lg scan-input" placeholder="Quét mã phiếu C/L" autocomplete="off">
+      <input id="do_no" class="form-control form-control-lg scan-input" placeholder="Quét mã phiếu C/L trên Picking List" autocomplete="off">
       <button id="scanDoBtn" class="btn btn-dark btn-lg" type="button">📷</button>
     </div>
     <button id="loadPackBtn" class="btn btn-primary btn-lg w-100">Tìm phiếu đóng hàng</button>
-    <div class="form-text mt-2">Không scan DO gốc. Scan barcode trên Picking List đã gom theo cửa hàng.</div>
+    <div class="wes-form-hint mt-2">Không dùng DO gốc để đóng hàng. Chuẩn vận hành hiện tại là scan barcode trên Picking List đã gom theo cửa hàng.</div>
   </div>
 
   <div class="wes-section-label">Phiếu chờ đóng hàng · {{ tasks|length }} pending</div>
@@ -103,7 +109,10 @@
     </article>
   </div>
 
-  <a href="/" class="btn btn-secondary w-100">Về trang chủ</a>
+  <div class="row g-2">
+    <div class="col-6"><a href="/picking" class="btn btn-outline-primary w-100">Phiếu lấy hàng</a></div>
+    <div class="col-6"><a href="/" class="btn btn-secondary w-100">Về trang chủ</a></div>
+  </div>
 
   <audio id="successBeep" preload="auto"><source src="/static/sound/success.mp3" type="audio/mpeg"></audio>
   <script src="https://unpkg.com/html5-qrcode"></script>

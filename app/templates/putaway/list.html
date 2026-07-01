@@ -11,13 +11,19 @@
     </div>
   </div>
 
+  <div class="wes-flow-steps mb-3">
+    <div class="active"><strong>1</strong><span>Scan PA</span></div>
+    <div><strong>2</strong><span>Xem gợi ý</span></div>
+    <div><strong>3</strong><span>Scan vị trí</span></div>
+  </div>
+
   <a href="/putaway/scan-pa" class="wes-primary-scan-card">
     <span class="wes-primary-scan-icon">📷</span>
     <span><strong>Quét PA/Pallet để cất hàng</strong><small>Mở camera hoặc dùng máy scan điện thoại</small></span>
     <span class="wes-task-arrow">›</span>
   </a>
 
-  <div class="wes-section-label">Pallet đang chờ cất</div>
+  <div class="wes-section-label">Pallet đang chờ cất · {{ tasks|length }} pending</div>
 
   {% if tasks|length == 0 %}
   <div class="wes-empty-state">

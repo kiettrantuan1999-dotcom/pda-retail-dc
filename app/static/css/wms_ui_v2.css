@@ -708,3 +708,178 @@ form .input-group,
   .wes-pick-index { width: 38px; height: 38px; }
   .wes-location-text { font-size: 17px; }
 }
+
+/* =========================================================
+   Sprint UI Upgrade - operator-centered refinements
+   Scope: Home, Putaway, Pack, Inventory
+========================================================= */
+.hero-inventory {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 56%, #155e75 100%);
+}
+.wes-guidance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--wes-border);
+  border-radius: 22px;
+  box-shadow: var(--wes-shadow);
+}
+.wes-guidance-card > div {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.wes-guidance-card strong {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 950;
+}
+.wes-guidance-card span {
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.wes-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.wes-flow-steps > div {
+  min-height: 64px;
+  padding: 10px 8px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--wes-border);
+  border-radius: 18px;
+  box-shadow: 0 8px 18px rgba(15,23,42,.04);
+}
+.wes-flow-steps strong {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+  color: #475569;
+  background: #e2e8f0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 950;
+}
+.wes-flow-steps span {
+  display: block;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 900;
+}
+.wes-flow-steps .active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.wes-flow-steps .active strong {
+  color: #fff;
+  background: #2563eb;
+}
+.wes-flow-steps .active span { color: #1e3a8a; }
+.wes-form-hint {
+  padding: 10px 12px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+.wes-task-card:active,
+.wes-primary-scan-card:active,
+.wes-work-card:active {
+  transform: translateY(1px);
+}
+@media (max-width: 576px) {
+  .wes-flow-steps { gap: 6px; }
+  .wes-flow-steps > div { min-height: 58px; padding: 9px 4px; }
+  .wes-flow-steps span { font-size: 11px; }
+  .wes-guidance-card { padding: 12px; }
+}
+
+/* Auto update popup */
+.app-update-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.56);
+  padding: 18px;
+}
+
+.app-update-popup.d-none {
+  display: none !important;
+}
+
+.app-update-card {
+  width: min(420px, 100%);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.32);
+  padding: 22px;
+  text-align: center;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.app-update-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.app-update-title {
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 850;
+  margin-bottom: 8px;
+}
+
+.app-update-message {
+  color: #475569;
+  font-size: 15px;
+  line-height: 1.45;
+  margin-bottom: 18px;
+}
+
+.app-update-button {
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 13px 16px;
+}

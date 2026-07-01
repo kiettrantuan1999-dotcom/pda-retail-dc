@@ -241,7 +241,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const packageQty = actualPackageQty.value.trim();
 
-    if (packageQty === "" || Number(packageQty) < 0) {
+    if (packageQty === "" || Number(packageQty) <= 0) {
       showMessage("alert-danger", "Số kiện thực tế không hợp lệ.");
       actualPackageQty.focus();
       return;
@@ -270,7 +270,13 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      showMessage("alert-success", "✅ Đóng hàng thành công.");
+      const savedPack = data.data || {};
+      const deductQty = Number(savedPack.total_deduct_qty || 0);
+      const deductLine = Number(savedPack.deduct_line_count || 0);
+      const successMessage = deductQty > 0
+        ? `✅ Đóng hàng thành công. Đã trừ tồn ${deductQty} sản phẩm / ${deductLine} dòng vị trí.`
+        : "✅ Đóng hàng thành công.";
+      showMessage("alert-success", successMessage);
 
       const beep = document.getElementById("successBeep");
       if (beep) {

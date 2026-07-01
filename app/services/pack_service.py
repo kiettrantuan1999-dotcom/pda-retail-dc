@@ -10,6 +10,7 @@ from app.models.tables import (
     PackHeader,
     PackLog,
     DoDetail,
+    InventoryBalance,
     AuditLog,
 )
 
@@ -65,6 +66,143 @@ def _unique_do_nos(details) -> list[str]:
         seen.add(do_no)
     return values
 
+
+
+def _build_inventory_deductions(details):
+    """
+    Gom số lượng cần trừ tồn theo SKU + vị trí.
+
+    Pack là điểm xác nhận xuất kho trong flow hiện tại, nên tồn vật lý
+    inventory_balance.qty_onhand chỉ được trừ khi xác nhận pack thành công.
+    """
+    deductions = {}
+    missing_location_rows = []
+
+    for row in details:
+        sku = _clean_scan_code(getattr(row, "sku", ""))
+        location_id = _clean_scan_code(getattr(row, "location_id", ""))
+        qty = int(getattr(row, "qty_pick", 0) or 0)
+
+        if qty <= 0:
+            continue
+
+        if not sku or not location_id:
+            missing_location_rows.append({
+                "sku": sku or getattr(row, "sku", ""),
+                "location_id": location_id or getattr(row, "location_id", ""),
+                "qty": qty,
+            })
+            continue
+
+        key = (sku, location_id)
+        if key not in deductions:
+            deductions[key] = {
+                "sku": sku,
+                "location_id": location_id,
+                "barcode": getattr(row, "barcode", "") or "",
+                "product_name": getattr(row, "product_name", "") or "",
+                "qty": 0,
+            }
+        deductions[key]["qty"] += qty
+
+    return deductions, missing_location_rows
+
+
+def _validate_and_deduct_inventory(db: Session, details, picking_no: str, user_name: str, now):
+    """
+    Trừ tồn outbound khi pack.
+
+    Nguyên tắc:
+    - Trừ theo đúng SKU + location_id trên picking_detail.
+    - Không cho âm tồn.
+    - Nếu thiếu vị trí hoặc không có dòng tồn, không cho hoàn tất pack.
+    - Ghi AuditLog theo từng SKU/vị trí để truy vết.
+    """
+    deductions, missing_location_rows = _build_inventory_deductions(details)
+
+    if missing_location_rows:
+        sample = missing_location_rows[0]
+        return {
+            "ok": False,
+            "message": (
+                "Không thể trừ tồn khi pack vì phiếu có dòng thiếu SKU/vị trí. "
+                f"SKU: {sample.get('sku') or '-'}, vị trí: {sample.get('location_id') or '-'}, "
+                f"SL: {sample.get('qty') or 0}."
+            ),
+        }
+
+    if not deductions:
+        return {
+            "ok": False,
+            "message": "Không có số lượng hợp lệ để trừ tồn khi pack.",
+        }
+
+    inventory_rows = []
+    insufficient_rows = []
+
+    for item in deductions.values():
+        inv = (
+            db.query(InventoryBalance)
+            .filter(
+                InventoryBalance.sku == item["sku"],
+                InventoryBalance.location_id == item["location_id"],
+            )
+            .with_for_update()
+            .first()
+        )
+
+        qty_before = int(inv.qty_onhand or 0) if inv else 0
+        qty_pack = int(item["qty"] or 0)
+
+        if not inv or qty_before < qty_pack:
+            insufficient_rows.append({
+                "sku": item["sku"],
+                "location_id": item["location_id"],
+                "qty_onhand": qty_before,
+                "qty_pack": qty_pack,
+            })
+            continue
+
+        inventory_rows.append((inv, item, qty_before, qty_pack))
+
+    if insufficient_rows:
+        first = insufficient_rows[0]
+        return {
+            "ok": False,
+            "message": (
+                "Không đủ tồn để pack. "
+                f"SKU {first['sku']} tại vị trí {first['location_id']}: "
+                f"tồn hiện tại {first['qty_onhand']}, cần xuất {first['qty_pack']}."
+            ),
+            "insufficient_rows": insufficient_rows,
+        }
+
+    total_deduct_qty = 0
+    for inv, item, qty_before, qty_pack in inventory_rows:
+        qty_after = qty_before - qty_pack
+        inv.qty_onhand = qty_after
+        inv.last_update = now
+        total_deduct_qty += qty_pack
+
+        db.add(AuditLog(
+            operation="PACK_OUTBOUND",
+            reference_no=picking_no,
+            pallet_id="",
+            location_id=item["location_id"],
+            sku=item["sku"],
+            barcode=item["barcode"],
+            qty_before=qty_before,
+            qty_after=qty_after,
+            qty_change=-qty_pack,
+            user_name=user_name or "",
+            remark=f"Trừ tồn khi pack phiếu {picking_no} / SL xuất {qty_pack}",
+        ))
+
+    return {
+        "ok": True,
+        "total_deduct_qty": total_deduct_qty,
+        "deduct_line_count": len(inventory_rows),
+    }
 
 
 def _pack_status_badge(status: str) -> str:
@@ -275,6 +413,16 @@ def confirm_pack(
     do_nos = _unique_do_nos(details)
     now = now_vn()
 
+    inventory_result = _validate_and_deduct_inventory(
+        db=db,
+        details=details,
+        picking_no=header.picking_no,
+        user_name=user_name or "",
+        now=now,
+    )
+    if not inventory_result.get("ok"):
+        return inventory_result
+
     header.pack_status = "DONE"
     header.packed_by = user_name or ""
     header.packed_time = now
@@ -355,8 +503,8 @@ def confirm_pack(
         location_id="",
         sku="",
         barcode="",
-        qty_before=0,
-        qty_after=total_qty,
+        qty_before=total_qty,
+        qty_after=0,
         qty_change=-total_qty,
         user_name=user_name or "",
         remark=f"Đóng hàng phiếu {header.picking_no} / picker {picker_name} / packer {user_name or ''} / {actual_package_qty} kiện / {len(do_nos)} DO",
@@ -379,6 +527,8 @@ def confirm_pack(
         "sku_line_count": sku_line_count,
         "total_qty": total_qty,
         "actual_package_qty": actual_package_qty,
+        "total_deduct_qty": inventory_result.get("total_deduct_qty", 0),
+        "deduct_line_count": inventory_result.get("deduct_line_count", 0),
         "picked_by": picker_name,
         "packed_by": user_name or "",
     }

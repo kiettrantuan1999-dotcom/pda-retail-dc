@@ -5,6 +5,7 @@ from app.services import warehouse_service as svc
 from app.services.log_service import write_operation_log
 from app.services import pack_service
 from app.services.pack_service import get_pack_by_do, confirm_pack
+from app.core.version import APP_VERSION
 
 router = APIRouter(prefix="/api")
 
@@ -24,6 +25,11 @@ def ok(data=None):
 
 def fail(e: Exception):
     return {"ok": False, "error": str(e)}
+
+
+@router.get("/app/version")
+def app_version():
+    return {"ok": True, "version": APP_VERSION}
 
 
 @router.get("/gr/product/{barcode}")
