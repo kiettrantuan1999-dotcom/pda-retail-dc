@@ -8,6 +8,7 @@ from app.models.tables import (
     ProductBarcodeAlias,
     SkuMaster,
     PoDetail,
+    PoHeader,
     InboundQueue,
     PalletHeader,
     PalletDetail,
@@ -31,6 +32,32 @@ def _clean_lookup_text(value: str) -> str:
 
 def _po_filter_value(value: str) -> str:
     return _clean_lookup_text(value).upper()
+
+
+def _find_po_header(db: Session, po_no: str):
+    po_no = _clean_lookup_text(po_no)
+    if not po_no:
+        return None
+
+    row = db.query(PoHeader).filter(PoHeader.po_no == po_no).first()
+    if row:
+        return row
+
+    return (
+        db.query(PoHeader)
+        .filter(func.upper(func.trim(PoHeader.po_no)) == _po_filter_value(po_no))
+        .first()
+    )
+
+
+def _is_po_confirmed(db: Session, po_no: str) -> bool:
+    po_header = _find_po_header(db, po_no)
+    return bool(po_header and (po_header.status or '').upper() in {'CONFIRMED', 'CLOSED', 'DONE'})
+
+
+def _raise_if_po_confirmed(db: Session, po_no: str) -> None:
+    if _is_po_confirmed(db, po_no):
+        raise ValueError(f"PO {po_no} đã Confirm/đóng, không được GR thêm hoặc sửa số lượng")
 
 
 def _find_po_detail_rows(db: Session, po_no: str):
@@ -385,6 +412,7 @@ def get_gr_po_detail_summary(db: Session, po_no: str):
     if not po_no:
         raise ValueError("Vui lòng scan/nhập PO")
 
+    po_header = _find_po_header(db, po_no)
     po_rows = _find_po_detail_rows(db, po_no)
 
     if not po_rows:
@@ -431,6 +459,8 @@ def get_gr_po_detail_summary(db: Session, po_no: str):
         "total_order": total_order,
         "total_received": total_received,
         "status": _receipt_status(total_received, total_order),
+        "po_status": (po_header.status if po_header else "WAIT_GR"),
+        "is_po_confirmed": bool(po_header and (po_header.status or "").upper() in {"CONFIRMED", "CLOSED", "DONE"}),
         "rows": rows,
     }
 
@@ -460,6 +490,8 @@ def confirm_gr(
 
     if not po_no:
         raise ValueError("Vui lòng scan/nhập PO")
+
+    _raise_if_po_confirmed(db, po_no)
 
     if not pallet_id:
         raise ValueError("Vui lòng scan PA/Pallet")
@@ -705,6 +737,8 @@ def complete_gr_pallet(
     if not po_no:
         raise ValueError("Vui lòng nhập PO trước khi hoàn tất PA")
 
+    _raise_if_po_confirmed(db, po_no)
+
     if not pallet_id:
         raise ValueError("Vui lòng nhập PA trước khi hoàn tất PA")
 
@@ -805,6 +839,88 @@ def complete_gr_pallet(
         "changed_lines": changed,
     }
 
+def confirm_gr_po(
+    db: Session,
+    po_no: str,
+    user_name: str = "developer",
+):
+    """Đóng PO sau khi đã nhận xong toàn bộ hàng thực tế của PO.
+
+    Confirm PO khóa GR: không cho tạo PA mới, thêm SKU mới hoặc sửa SL GR.
+    Điều kiện an toàn: không còn PA/Dòng GR ở DRAFT; PA đã scan phải Confirm PA trước.
+    """
+    po_no = (po_no or "").strip()
+    if not po_no:
+        raise ValueError("Vui lòng nhập/scan PO trước khi Confirm PO")
+
+    po_header = _find_po_header(db, po_no)
+    po_rows = _find_po_detail_rows(db, po_no)
+    if not po_rows:
+        raise ValueError(f"PO {po_no} chưa có PO detail, không thể Confirm PO")
+
+    if po_header and (po_header.status or "").upper() in {"CONFIRMED", "CLOSED", "DONE"}:
+        raise ValueError(f"PO {po_no} đã được Confirm/đóng trước đó")
+
+    queues = (
+        db.query(InboundQueue)
+        .filter(func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no))
+        .all()
+    )
+    if not queues:
+        raise ValueError("PO chưa có dòng GR nào, không thể Confirm PO")
+
+    draft_rows = [q for q in queues if (q.flow_status or "").upper() in {"", "DRAFT"}]
+    if draft_rows:
+        pa_list = sorted({q.pallet_id for q in draft_rows})
+        raise ValueError("Còn PA chưa Confirm PA: " + ", ".join(pa_list[:10]))
+
+    now = datetime.utcnow()
+    total_qty = sum(int(q.qty_gr or 0) for q in queues)
+    total_sku = len({q.sku for q in queues})
+    total_pa = len({q.pallet_id for q in queues})
+
+    if not po_header:
+        po_header = PoHeader(po_no=po_no, status="CONFIRMED", created_at=now, last_update=now)
+        db.add(po_header)
+    else:
+        po_header.status = "CONFIRMED"
+        po_header.last_update = now
+
+    for r in po_rows:
+        received = _calc_po_line_received(db, po_no, r.sku)
+        r.qty_received = received
+        r.qty_remaining = max(int(r.qty_order or 0) - received, 0)
+        r.status = _receipt_status(received, int(r.qty_order or 0))
+        r.last_update = now
+
+    db.add(AuditLog(
+        operation="GR_CONFIRM_PO",
+        reference_no=po_no,
+        pallet_id="",
+        location_id="",
+        sku="MIXED",
+        barcode="",
+        qty_before=0,
+        qty_after=total_qty,
+        qty_change=total_qty,
+        qty_regular=total_qty,
+        qty_promo=0,
+        qty_total=total_qty,
+        user_name=user_name,
+        remark=f"Confirm PO: {po_no}, tổng PA={total_pa}, tổng SKU={total_sku}, tổng SL GR={total_qty}",
+    ))
+
+    db.commit()
+
+    return {
+        "po_no": po_no,
+        "po_status": "CONFIRMED",
+        "total_pa": total_pa,
+        "total_sku": total_sku,
+        "total_qty": total_qty,
+    }
+
+
 def get_gr_history_by_po(db: Session, po_no: str, limit: int = 50):
     po_no = po_no.strip()
 
@@ -875,6 +991,8 @@ def update_gr_qty_after_confirm(
 
     if not queue:
         raise ValueError("Không tìm thấy dòng GR cần sửa")
+
+    _raise_if_po_confirmed(db, queue.po_no)
 
     flow_status = (queue.flow_status or "").upper()
     editable_statuses = {"DRAFT", "WAIT_PUTAWAY", "PARTIAL"}

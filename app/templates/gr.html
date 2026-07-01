@@ -216,7 +216,8 @@
   </div>
   <div class="gr-action-bar">
     <button id="clearGrBtn" type="button" class="btn btn-outline-secondary">🗑 Xóa thông tin</button>
-    <button id="completePaTopBtn" type="button" class="btn btn-primary">✓ Hoàn tất PA</button>
+    <button id="completePaTopBtn" type="button" class="btn btn-primary">✓ Confirm PA</button>
+    <button id="confirmPoTopBtn" type="button" class="btn btn-success">✓ Confirm PO</button>
   </div>
 </div>
 
@@ -351,19 +352,24 @@
         </div>
       </div>
 
-      <button type="submit" class="btn btn-primary w-100 pda-action-btn mt-3">
-        💾 LƯU SKU VÀO PA
-      </button>
+      <button type="submit" id="hiddenGrSubmitBtn" class="d-none">Tự lưu SKU vào PA</button>
+
+      <div class="alert alert-info py-2 mt-3 mb-0 small">
+        Sau khi nhập số lượng, bấm <b>Enter</b> tại ô SL khuyến mãi để hệ thống tự lưu SKU vào PA.
+      </div>
 
     </form>
 
-    <button id="completePaBtn" type="button" class="btn btn-success w-100 pda-action-btn mt-2">
-      ✅ HOÀN TẤT PA
+    <button id="completePaBtn" type="button" class="btn btn-primary w-100 pda-action-btn mt-2">
+      ✅ CONFIRM PA
+    </button>
+
+    <button id="confirmPoBtn" type="button" class="btn btn-success w-100 pda-action-btn mt-2">
+      ✅ XÁC NHẬN PO
     </button>
 
     <div class="form-text mt-2">
-      Sau khi scan đủ SKU trên pallet, bấm <b>Hoàn tất PA</b> để chuyển PA sang Put Away.
-      Nếu PA chỉ có 1 SKU: Lưu SKU → Hoàn tất PA.
+      Confirm PA để chuyển PA sang Put Away. Khi đã nhập xong toàn bộ PA của PO, bấm <b>Xác nhận PO</b> để đóng PO và khóa GR.
     </div>
   </div>
 </div>

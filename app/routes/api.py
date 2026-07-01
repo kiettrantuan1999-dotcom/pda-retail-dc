@@ -186,6 +186,24 @@ def gr_complete_pa(
         return fail(e)
 
 
+@router.post("/gr/confirm-po")
+def gr_confirm_po(
+    request: Request,
+    po_no: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = svc.confirm_gr_po(
+            db=db,
+            po_no=po_no.strip(),
+            user_name=username(request),
+        )
+        return ok(result)
+    except Exception as e:
+        db.rollback()
+        return fail(e)
+
+
 @router.get("/putaway/tasks")
 def putaway_tasks(db: Session = Depends(get_db)):
     try:

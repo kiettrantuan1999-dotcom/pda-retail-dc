@@ -38,6 +38,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const poTotalOrderCard = document.getElementById("poTotalOrderCard");
   const poTotalReceivedCard = document.getElementById("poTotalReceivedCard");
   const completePaTopBtn = document.getElementById("completePaTopBtn");
+  const confirmPoTopBtn = document.getElementById("confirmPoTopBtn");
+  const confirmPoBtn = document.getElementById("confirmPoBtn");
   const clearGrBtn = document.getElementById("clearGrBtn");
   const completePaModal = document.getElementById("completePaModal");
   const completeModalTotalSku = document.getElementById("completeModalTotalSku");
@@ -79,6 +81,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let latestPoSummary = null;
   let pendingCompletePa = null;
   let suppressAutoScanUntil = 0;
+  let isSubmittingGr = false;
 
   function openSheet(sheet) {
     if (!sheet) return;
@@ -204,6 +207,9 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   if (completePaTopBtn && completePaBtn) {
     completePaTopBtn.addEventListener("click", function () { completePaBtn.click(); });
+  }
+  if (confirmPoTopBtn && confirmPoBtn) {
+    confirmPoTopBtn.addEventListener("click", function () { confirmPoBtn.click(); });
   }
   if (clearGrBtn) {
     clearGrBtn.addEventListener("click", function () {
@@ -486,6 +492,16 @@ function escapeHtml(value) {
     });
   }
 
+  function setPoLockedState(isLocked) {
+    [barcodeInput, pcbInput, cartonQtyInput, looseQtyInput, qtyPromoInput, palletInput].forEach(function (input) {
+      if (input) input.disabled = Boolean(isLocked);
+    });
+    if (completePaBtn) completePaBtn.disabled = Boolean(isLocked);
+    if (completePaTopBtn) completePaTopBtn.disabled = Boolean(isLocked);
+    if (confirmPoBtn) confirmPoBtn.disabled = Boolean(isLocked);
+    if (confirmPoTopBtn) confirmPoTopBtn.disabled = Boolean(isLocked);
+  }
+
   function statusBadge(status) {
     const clean = String(status || "").toUpperCase();
     if (clean === "ĐỦ") return "text-bg-success";
@@ -498,6 +514,7 @@ function escapeHtml(value) {
 
     if (!summary || !summary.rows || !summary.rows.length) {
       latestPoSummary = null;
+      setPoLockedState(false);
       if (poSummaryCards) poSummaryCards.classList.add("d-none");
       poDetailSubtitle.innerText = "Scan PO để xem SKU cần nhập.";
       poDetailBody.innerHTML = `
@@ -512,7 +529,9 @@ function escapeHtml(value) {
     if (poTotalOrderCard) poTotalOrderCard.innerText = formatNumber(summary.total_order);
     if (poTotalReceivedCard) poTotalReceivedCard.innerText = formatNumber(summary.total_received);
 
-    poDetailSubtitle.innerText = `PO: ${summary.po_no} · SKU: ${summary.total_sku} · Đặt: ${summary.total_order} · Đã nhập: ${summary.total_received} · ${summary.status}`;
+    const poStatusText = summary.po_status ? ` · PO: ${summary.po_status}` : "";
+    poDetailSubtitle.innerText = `PO: ${summary.po_no} · SKU: ${summary.total_sku} · Đặt: ${summary.total_order} · Đã nhập: ${summary.total_received} · ${summary.status}${poStatusText}`;
+    setPoLockedState(Boolean(summary.is_po_confirmed));
 
     poDetailBody.innerHTML = summary.rows.map(function (r) {
       return `
@@ -848,8 +867,8 @@ function restoreManualInput(targetInput) {
     try {
       completePaBtn.disabled = true;
       if (completePaTopBtn) completePaTopBtn.disabled = true;
-      completePaBtn.innerText = "ĐANG HOÀN TẤT PA...";
-      if (completePaTopBtn) completePaTopBtn.innerText = "Đang hoàn tất...";
+      completePaBtn.innerText = "ĐANG CONFIRM PA...";
+      if (completePaTopBtn) completePaTopBtn.innerText = "Đang confirm...";
 
       const res = await fetch("/api/gr/complete-pa", {
         method: "POST",
@@ -864,7 +883,7 @@ function restoreManualInput(targetInput) {
 
       resultBox.classList.remove("d-none");
       resultBox.classList.add("gr-result-success");
-      resultTitle.innerText = "✅ Đã hoàn tất PA";
+      resultTitle.innerText = "✅ Đã Confirm PA";
       resultTitle.className = "fw-bold mb-2 text-success";
       resultText.innerHTML = `
         <div><b>PO:</b> ${escapeHtml(data.data.po_no)}</div>
@@ -872,7 +891,7 @@ function restoreManualInput(targetInput) {
         <div><b>Tổng số lượng SKU GR:</b> ${formatNumber(data.data.total_sku)}</div>
         <div><b>Tổng số lượng GR:</b> ${formatNumber(data.data.total_qty)}</div>
         <div><b>Status:</b> ${escapeHtml(data.data.flow_status)}</div>
-        <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away.</div>
+        <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away. Scan PA mới để tiếp tục nhập cùng PO.</div>
       `;
 
       await loadHistory();
@@ -896,8 +915,8 @@ function restoreManualInput(targetInput) {
     } finally {
       completePaBtn.disabled = false;
       if (completePaTopBtn) completePaTopBtn.disabled = false;
-      completePaBtn.innerText = "✅ HOÀN TẤT PA";
-      if (completePaTopBtn) completePaTopBtn.innerText = "✓ Hoàn tất PA";
+      completePaBtn.innerText = "✅ CONFIRM PA";
+      if (completePaTopBtn) completePaTopBtn.innerText = "✓ Confirm PA";
     }
   }
 
@@ -906,13 +925,13 @@ function restoreManualInput(targetInput) {
       const poNo = poInput.value.trim();
       const palletId = palletInput.value.trim();
 
-      if (!poNo) return showError("Vui lòng nhập/scan PO trước khi hoàn tất PA");
-      if (!palletId) return showError("Vui lòng nhập/scan PA trước khi hoàn tất PA");
+      if (!poNo) return showError("Vui lòng nhập/scan PO trước khi Confirm PA");
+      if (!palletId) return showError("Vui lòng nhập/scan PA trước khi Confirm PA");
 
       await loadHistory();
       const currentSummary = getCurrentPaSummary(poNo, palletId);
       if (currentSummary.totalSku <= 0 || currentSummary.totalQty <= 0) {
-        return showError("PA chưa có SKU hoặc số lượng GR, không thể hoàn tất");
+        return showError("PA chưa có SKU hoặc số lượng GR, không thể Confirm PA");
       }
 
       openCompleteModal(poNo, palletId);
@@ -997,8 +1016,64 @@ function restoreManualInput(targetInput) {
     });
   }
 
+  async function submitConfirmPo() {
+    const poNo = poInput.value.trim();
+    if (!poNo) return showError("Vui lòng nhập/scan PO trước khi xác nhận PO");
+
+    await loadHistory();
+    await loadPoDetail();
+
+    if (!window.confirm(`Xác nhận đóng PO ${poNo}? Sau khi Confirm PO sẽ không được GR thêm hoặc sửa SL.`)) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("po_no", poNo);
+
+    let confirmedOk = false;
+    try {
+      if (confirmPoBtn) { confirmPoBtn.disabled = true; confirmPoBtn.innerText = "ĐANG XÁC NHẬN PO..."; }
+      if (confirmPoTopBtn) { confirmPoTopBtn.disabled = true; confirmPoTopBtn.innerText = "Đang xác nhận..."; }
+
+      const res = await fetch("/api/gr/confirm-po", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (!data.ok) return showError(data.error || "Không xác nhận được PO");
+
+      resultBox.classList.remove("d-none");
+      resultBox.classList.add("gr-result-success");
+      resultTitle.innerText = "✅ Đã xác nhận PO";
+      resultTitle.className = "fw-bold mb-2 text-success";
+      resultText.innerHTML = `
+        <div><b>PO:</b> ${escapeHtml(data.data.po_no)}</div>
+        <div><b>Trạng thái:</b> ${escapeHtml(data.data.po_status)}</div>
+        <div><b>Tổng PA:</b> ${formatNumber(data.data.total_pa)}</div>
+        <div><b>Tổng SKU:</b> ${formatNumber(data.data.total_sku)}</div>
+        <div><b>Tổng SL GR:</b> ${formatNumber(data.data.total_qty)}</div>
+        <div class="text-muted mt-1">PO đã đóng. Hệ thống đã khóa GR thêm và khóa sửa SL.</div>
+      `;
+
+      await loadHistory();
+      await loadPoDetail();
+      confirmedOk = true;
+      setPoLockedState(true);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      if (!confirmedOk) {
+        if (confirmPoBtn) { confirmPoBtn.disabled = false; confirmPoBtn.innerText = "✅ XÁC NHẬN PO"; }
+        if (confirmPoTopBtn) { confirmPoTopBtn.disabled = false; confirmPoTopBtn.innerText = "✓ Confirm PO"; }
+      }
+    }
+  }
+
+  if (confirmPoBtn) {
+    confirmPoBtn.addEventListener("click", submitConfirmPo);
+  }
+
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
+    if (isSubmittingGr) return;
 
     const poNo = poInput.value.trim();
     const palletId = palletInput.value.trim();
@@ -1011,6 +1086,8 @@ function restoreManualInput(targetInput) {
     if (qty.pcb <= 0) return showError("PCB phải lớn hơn 0");
     if (qty.cartonQty < 0 || qty.looseQty < 0 || qty.qtyPromo < 0) return showError("Số lượng không được âm");
     if (qty.qtyTotal <= 0) return showError("Tổng số lượng nhập phải lớn hơn 0");
+
+    isSubmittingGr = true;
 
     const formData = new FormData();
     formData.append("po_no", poNo);
@@ -1050,7 +1127,7 @@ function restoreManualInput(targetInput) {
           <div><b>Tổng SKU trên PA:</b> ${data.data.pallet_total_sku || 1}</div>
           <div><b>Tổng SL trên PA:</b> ${data.data.pallet_total_qty || data.data.qty_total}</div>
           <div><b>Status:</b> ${data.data.flow_status}</div>
-          <div class="text-muted mt-1">Scan SKU tiếp theo trên cùng PA. Nếu muốn qua PA mới, bấm <b>Hoàn tất PA</b> rồi scan mã PA mới.</div>
+          <div class="text-muted mt-1">Đã tự lưu SKU vào PA. Scan SKU tiếp theo trên cùng PA, hoặc bấm <b>Confirm PA</b> để qua PA mới.</div>
         `;
 
         // Giữ nguyên PA để nhân sự có thể scan nhiều SKU vào cùng pallet.
@@ -1077,6 +1154,8 @@ function restoreManualInput(targetInput) {
       resultTitle.innerText = "❌ Lỗi kết nối";
       resultTitle.className = "fw-bold mb-2 text-danger";
       resultText.innerText = err.message;
+    } finally {
+      isSubmittingGr = false;
     }
   });
 });
