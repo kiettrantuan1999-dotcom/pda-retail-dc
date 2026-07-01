@@ -1,79 +1,72 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3">
-  <h4 class="fw-bold mb-0">📋 Chi tiết phiếu lấy hàng</h4>
-  <div class="text-muted">Gom theo cửa hàng: {{ header.store_id }} - {{ header.store_name }}</div>
-</div>
-
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <div><b>Cửa hàng:</b> {{ header.store_id }} - {{ header.store_name }}</div>
-    <div><b>Mã chuyến:</b> {{ header.trip_no or "" }}</div>
-    <div><b>Wave:</b> {{ header.wave or "" }}</div>
-    <div><b>Khung giờ giao:</b> {{ header.khung_gio or "" }}</div>
-    <div><b>Loại giao:</b> {{ header.loai_giao or "" }}</div>
-    <hr>
-    <div><b>Tổng DO:</b> {{ stats.so_do }}</div>
-    <div><b>Tổng SKU:</b> {{ stats.so_sku }}</div>
-    <div><b>Tổng SL:</b> {{ stats.tong_sl }}</div>
-    <div><b>Số tem cần in:</b> {{ total_label_qty }}</div>
-
-    <div class="mt-2">
-      {% if header.pick_type == "CASE" %}
-        <span class="badge bg-primary">Chẵn</span>
-      {% else %}
-        <span class="badge bg-success">Lẻ</span>
-      {% endif %}
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-picking">
+    <a href="/picking" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Picking List</span>
+      <h4>Chi tiết phiếu lấy hàng</h4>
+      <p>{{ header.store_id }} - {{ header.store_name }}</p>
     </div>
   </div>
-</div>
 
-<div class="table-responsive">
-  <table class="table table-bordered table-sm align-middle">
-    <thead>
-      <tr>
-        <th>Thứ tự</th>
-        <th>Vị trí</th>
-        <th>SKU</th>
-        <th>Barcode</th>
-        <th>SL lấy</th>
-        <th>Số tem</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d in pick_lines %}
-      <tr>
-        <td>{{ d.pick_index }}</td>
-        <td>
-          {% if d.location_id %}
-            {{ d.location_id }}
-          {% else %}
-            <span class="text-danger fw-bold">Chưa có vị trí</span>
-          {% endif %}
-        </td>
-        <td>{{ d.sku }}</td>
-        <td>{{ d.barcode }}</td>
-        <td class="fw-bold">{{ d.qty_pick }}</td>
-        <td>{{ d.label_qty }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-<div class="mt-3">
-  <a href="/picking/{{ header.picking_id }}/print" target="_blank" class="btn btn-dark w-100">
-    🖨️ In phiếu lấy hàng
-  </a>
-</div>
+  <article class="wes-work-card">
+    <div class="wes-work-head">
+      <div>
+        <div class="wes-work-label">Cửa hàng</div>
+        <div class="wes-work-code">{{ header.store_id }}</div>
+        <div class="text-muted small">{{ header.store_name }}</div>
+      </div>
+      <div class="text-end">
+        {% if header.pick_type == "CASE" %}
+          <span class="badge bg-primary">Chẵn</span>
+        {% else %}
+          <span class="badge bg-success">Lẻ</span>
+        {% endif %}
+      </div>
+    </div>
 
-<div class="mt-3">
-  <a href="/picking" class="btn btn-secondary w-100">⬅ Danh sách phiếu lấy hàng</a>
-</div>
+    <div class="wes-info-grid mt-3">
+      <div><span>Mã chuyến</span><strong>{{ header.trip_no or "-" }}</strong></div>
+      <div><span>Wave</span><strong>{{ header.wave or "-" }}</strong></div>
+      <div><span>Khung giờ</span><strong>{{ header.khung_gio or "-" }}</strong></div>
+      <div><span>Loại giao</span><strong>{{ header.loai_giao or "-" }}</strong></div>
+    </div>
+  </article>
 
-<div class="mt-2">
-  <a href="/" class="btn btn-outline-secondary w-100">⬅ Về trang chủ</a>
-</div>
-<div><b>Số tem cần in:</b> {{ total_label_qty }}</div>
+  <div class="wes-kpi-grid my-3">
+    <div class="wes-kpi-card compact"><span>Tổng DO</span><strong>{{ stats.so_do }}</strong></div>
+    <div class="wes-kpi-card compact"><span>Tổng SKU</span><strong>{{ stats.so_sku }}</strong></div>
+    <div class="wes-kpi-card compact"><span>Tổng SL</span><strong>{{ stats.tong_sl }}</strong></div>
+    <div class="wes-kpi-card compact"><span>Số tem</span><strong>{{ total_label_qty }}</strong></div>
+  </div>
+
+  <a href="/picking/{{ header.picking_id }}/print" target="_blank" class="btn btn-dark btn-lg w-100 mb-3">🖨️ In phiếu lấy hàng</a>
+
+  <div class="wes-section-label">Danh sách SKU cần lấy</div>
+  <div class="wes-mobile-list pick-line-list">
+    {% for d in pick_lines %}
+    <article class="wes-pick-line-card">
+      <div class="wes-pick-index">{{ d.pick_index }}</div>
+      <div class="wes-pick-main">
+        <div class="wes-location-text">
+          {% if d.location_id %}{{ d.location_id }}{% else %}<span class="text-danger">Chưa có vị trí</span>{% endif %}
+        </div>
+        <div class="wes-sku-text">SKU {{ d.sku }}</div>
+        <div class="wes-barcode-text">{{ d.barcode }}</div>
+      </div>
+      <div class="wes-pick-qty">
+        <span>SL</span><strong>{{ d.qty_pick }}</strong><small>Tem {{ d.label_qty }}</small>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="row g-2 mt-3">
+    <div class="col-12"><a href="/picking" class="btn btn-secondary w-100">Danh sách phiếu lấy hàng</a></div>
+    <div class="col-12"><a href="/" class="btn btn-outline-secondary w-100">Về trang chủ</a></div>
+  </div>
+</section>
 
 {% endblock %}

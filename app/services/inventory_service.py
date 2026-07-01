@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,7 @@ from app.models.tables import (
 
 
 def _now():
-    return datetime.utcnow()
+    return now_vn()
 
 
 def _clean_code(value: str) -> str:
@@ -23,7 +24,7 @@ def _clean_code(value: str) -> str:
 
 
 def make_count_no() -> str:
-    return "CC" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    return "CC" + now_vn().strftime("%Y%m%d%H%M%S")
 
 
 def search_inventory(db: Session, q: str = ""):

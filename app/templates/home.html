@@ -8,51 +8,66 @@
 {% set is_admin = role == 'admin' %}
 
 {% if is_operator %}
-<section class="wms-command-head pda-home-head">
-  <div>
-    <div class="wms-breadcrumb">SUPRA WMS / PDA OPERATOR</div>
-    <h1>Tác vụ scan PDA</h1>
-    <p>Xin chào, <strong>{{ user.user_name }}</strong> · Chỉ hiển thị tác vụ vận hành cần thao tác nhanh.</p>
-  </div>
-</section>
-
-<section class="operator-scan-grid">
-  <a href="/gr" class="operator-scan-card scan-blue">
-    <span class="operator-code">GR</span>
-    <strong>Nhận hàng</strong>
-    <small>Scan PO / Barcode / Pallet</small>
-  </a>
-  <a href="/putaway" class="operator-scan-card scan-green">
-    <span class="operator-code">PA</span>
-    <strong>Cất hàng</strong>
-    <small>Scan pallet vào location</small>
-  </a>
-  <a href="/picking" class="operator-scan-card scan-blue">
-    <span class="operator-code">PL</span>
-    <strong>Phiếu lấy hàng</strong>
-    <small>Xem/In picking list theo index</small>
-  </a>
-  <a href="/pack" class="operator-scan-card scan-amber">
-    <span class="operator-code">PK</span>
-    <strong>Đóng hàng</strong>
-    <small>Scan DO và xác nhận pack</small>
-  </a>
-  <a href="/staging" class="operator-scan-card scan-red">
-    <span class="operator-code">ST</span>
-    <strong>Tập kết hàng</strong>
-    <small>Confirm khu staging</small>
-  </a>
-</section>
-
-<section class="wms-panel mt-3">
-  <div class="wms-panel-head">
+<section class="wes-mobile-home">
+  <div class="wes-home-hero">
     <div>
-      <h2>Hỗ trợ nhanh</h2>
-      <p>Dùng khi cần kiểm tra tồn hoặc xác minh thông tin trước khi báo quản lý.</p>
+      <div class="wes-home-greeting">Xin chào, {{ user.user_name }} 👋</div>
+      <div class="wes-home-shift">Ca làm: 08:00 - 17:00</div>
     </div>
+    <a href="/logout" class="wes-home-avatar" aria-label="Đăng xuất">{{ (user.user_name or 'U')[:1] }}</a>
   </div>
-  <div class="wms-quick-grid operator-support-grid">
-    <a href="/inventory" class="wms-quick-action secondary">Kiểm tra tồn</a>
+
+  <div class="wes-section-label">Công việc của bạn</div>
+
+  <div class="wes-task-list">
+    <a href="/gr" class="wes-task-card task-green">
+      <span class="wes-task-icon">▣</span>
+      <span class="wes-task-main"><strong>Nhận hàng</strong><small>Scan PO / SKU / PA</small></span>
+      <span class="wes-task-badge">GR</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+
+    <a href="/putaway" class="wes-task-card task-blue">
+      <span class="wes-task-icon">⌖</span>
+      <span class="wes-task-main"><strong>Cất hàng</strong><small>Scan PA vào vị trí</small></span>
+      <span class="wes-task-badge">PA</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+
+    <a href="/picking" class="wes-task-card task-amber">
+      <span class="wes-task-icon">⇄</span>
+      <span class="wes-task-main"><strong>Lấy hàng</strong><small>Phiếu lấy hàng theo cửa hàng</small></span>
+      <span class="wes-task-badge">PICK</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+
+    <a href="/pack" class="wes-task-card task-purple">
+      <span class="wes-task-icon">□</span>
+      <span class="wes-task-main"><strong>Đóng hàng</strong><small>Scan DO / xác nhận pack</small></span>
+      <span class="wes-task-badge">PACK</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+
+    <a href="/staging" class="wes-task-card task-cyan">
+      <span class="wes-task-icon">⌂</span>
+      <span class="wes-task-main"><strong>Tập kết</strong><small>Confirm khu staging</small></span>
+      <span class="wes-task-badge">ST</span>
+      <span class="wes-task-arrow">›</span>
+    </a>
+  </div>
+
+  <div class="wes-section-label mt-3">Hỗ trợ nhanh</div>
+  <div class="wes-mini-grid">
+    <a href="/inventory" class="wes-mini-card"><strong>Kiểm tồn</strong><small>Tra cứu / cycle count</small></a>
+    <a href="/pa-label" class="wes-mini-card"><strong>In tem PA</strong><small>Tạo / in nhãn pallet</small></a>
+  </div>
+
+  <div class="wes-today-card">
+    <div class="wes-today-title">Thống kê hôm nay</div>
+    <div class="wes-today-grid">
+      <div><strong>32</strong><span>Công việc</span></div>
+      <div><strong>85%</strong><span>Hiệu suất</span></div>
+    </div>
   </div>
 </section>
 {% endif %}

@@ -3,6 +3,7 @@ import traceback
 from typing import Any
 from sqlalchemy.orm import Session
 from app.models.tables import OperationLog, ErrorLog
+from app.utils.timezone import now_vn
 
 
 def _safe_json(data: Any) -> str:
@@ -37,6 +38,7 @@ def write_operation_log(
         request_payload=_safe_json(request_payload),
         ip_address=ip_address or "",
         device_info=device_info or "",
+        created_at=now_vn(),
     ))
 
 
@@ -67,4 +69,5 @@ def write_error_log(
         request_payload=_safe_json(request_payload),
         ip_address=ip_address or "",
         device_info=device_info or "",
+        created_at=now_vn(),
     ))

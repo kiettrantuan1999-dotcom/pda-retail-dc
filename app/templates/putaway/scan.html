@@ -1,206 +1,146 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3 no-scanner">
-  <h4 class="fw-bold mb-0">📍 Xác nhận cất hàng</h4>
-  <div class="text-muted">Scan vị trí sau khi hệ thống đã gợi ý dãy cất hàng.</div>
-</div>
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-putaway no-scanner">
+    <a href="/putaway" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Put Away</span>
+      <h4>Xác nhận cất hàng</h4>
+      <p>Quét vị trí thực tế sau khi kiểm tra dãy/vị trí gợi ý.</p>
+    </div>
+  </div>
 
 {% if error %}
-<div class="alert alert-danger">{{ error }}</div>
-<a href="/putaway" class="btn btn-secondary w-100">⬅ Quay lại</a>
+  <div class="alert alert-danger">{{ error }}</div>
+  <a href="/putaway" class="btn btn-secondary w-100">Quay lại</a>
 {% elif task %}
 
-<div class="card mb-3 shadow-sm no-scanner">
-  <div class="card-body">
-    {% if task.putaway_type == 'CHAN' %}
-      <div class="alert alert-success fw-bold text-center mb-3">🟢 HÀNG CHẴN</div>
-    {% elif task.putaway_type == 'LE' %}
-      <div class="alert alert-warning fw-bold text-center mb-3">🟡 HÀNG LẺ</div>
-    {% else %}
-      <div class="alert alert-secondary fw-bold text-center mb-3">⚪ CHƯA XÁC ĐỊNH CHẴN/LẺ</div>
-    {% endif %}
-
-    <div class="row g-2 small">
-      <div class="col-4 text-muted">PO</div><div class="col-8 fw-bold">{{ task.po_no }}</div>
-      <div class="col-4 text-muted">Pallet</div><div class="col-8 fw-bold">{{ task.pallet_id }}</div>
-      <div class="col-4 text-muted">Số SKU</div><div class="col-8 fw-bold">{{ task.total_sku or 1 }}{% if task.is_mixed_sku %} · Mixed SKU{% endif %}</div>
-      <div class="col-4 text-muted">SKU gợi ý dãy</div><div class="col-8 fw-bold">{{ task.sku }}</div>
-      <div class="col-4 text-muted">Tên hàng gợi ý</div><div class="col-8 fw-bold">{{ task.product_name or '-' }}</div>
-      <div class="col-4 text-muted">Category</div><div class="col-8 fw-bold">{{ task.category or '-' }}</div>
-      <div class="col-4 text-muted">Số lượng GR</div><div class="col-8 fw-bold">{{ task.qty_gr }}</div>
-      <div class="col-4 text-muted">Đã cất</div><div class="col-8 fw-bold">{{ task.qty_putaway }}</div>
-      <div class="col-4 text-muted">Còn cất</div><div class="col-8 fw-bold text-danger fs-5">{{ task.qty_remain_putaway }}</div>
+  <article class="wes-work-card no-scanner">
+    <div class="wes-work-head">
+      <div>
+        <div class="wes-work-label">PA/Pallet</div>
+        <div class="wes-work-code">{{ task.pallet_id }}</div>
+      </div>
+      <div class="text-end">
+        {% if task.putaway_type == 'CHAN' %}
+          <span class="badge bg-success">Hàng chẵn</span>
+        {% elif task.putaway_type == 'LE' %}
+          <span class="badge bg-warning text-dark">Hàng lẻ</span>
+        {% else %}
+          <span class="badge bg-secondary">Chưa xác định</span>
+        {% endif %}
+        {% if task.is_mixed_sku %}<div class="badge bg-primary mt-1">Mixed SKU</div>{% endif %}
+      </div>
     </div>
-  </div>
-</div>
 
-
-{% if task.detail_lines %}
-<div class="card mb-3 shadow-sm no-scanner">
-  <div class="card-body">
-    <div class="fw-bold mb-2">📦 Chi tiết SKU trong PA</div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>Tên hàng</th>
-            <th>Barcode</th>
-            <th class="text-end">PCB</th>
-            <th class="text-end">Còn cất</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for line in task.detail_lines %}
-          <tr>
-            <td class="fw-bold text-nowrap">{{ line.sku }}</td>
-            <td style="min-width: 180px;">{{ line.product_name or '-' }}</td>
-            <td class="text-nowrap">{{ line.barcode }}</td>
-            <td class="text-end">{{ line.pcb }}</td>
-            <td class="text-end fw-bold">{{ line.qty_remain_putaway }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="wes-info-grid mt-3">
+      <div><span>PO</span><strong>{{ task.po_no }}</strong></div>
+      <div><span>Số SKU</span><strong>{{ task.total_sku or 1 }}</strong></div>
+      <div><span>SKU gợi ý</span><strong>{{ task.sku }}</strong></div>
+      <div><span>Số lượng GR</span><strong>{{ task.qty_gr }}</strong></div>
+      <div><span>Đã cất</span><strong>{{ task.qty_putaway }}</strong></div>
+      <div><span>Còn cất</span><strong class="text-danger">{{ task.qty_remain_putaway }}</strong></div>
+      <div class="span-2"><span>Tên hàng gợi ý</span><strong>{{ task.product_name or '-' }}</strong></div>
+      <div class="span-2"><span>Category</span><strong>{{ task.category or '-' }}</strong></div>
     </div>
-  </div>
-</div>
-{% endif %}
+  </article>
 
-<div class="card mb-3 shadow-sm no-scanner">
-  <div class="card-body">
-    <div class="fw-bold mb-2">🧭 Dãy gợi ý</div>
+  {% if task.detail_lines %}
+  <div class="wes-section-label no-scanner">SKU trong PA</div>
+  <div class="wes-mobile-list no-scanner">
+    {% for line in task.detail_lines %}
+    <article class="wes-sku-mini-card">
+      <div>
+        <strong>{{ line.sku }}</strong>
+        <small>{{ line.product_name or '-' }}</small>
+        <small>{{ line.barcode }}</small>
+      </div>
+      <div class="text-end">
+        <span>PCB {{ line.pcb }}</span>
+        <strong>{{ line.qty_remain_putaway }}</strong>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <article class="wes-work-card no-scanner mt-3">
+    <div class="wes-section-card-title">Dãy / vị trí gợi ý</div>
     <div class="text-muted small mb-2">{{ task.suggestion_source_label }}</div>
 
     {% if task.suggested_aisles %}
+      <div class="wes-aisle-chip-list">
       {% for x in task.suggested_aisles %}
-        <div class="alert {% if x.is_override %}alert-danger{% else %}alert-info{% endif %} py-2 mb-2 suggested-aisle" data-aisle="{{ x.aisle }}">
-          <div class="fw-bold">{% if x.is_override %}⭐ Override SKU{% else %}📍 Dãy{% endif %}: {{ x.aisle }}</div>
-          <div class="small">Loại: {{ x.putaway_type }} | Ưu tiên: {{ x.priority }}</div>
-          <div class="small text-muted">{{ x.note }}</div>
-        </div>
+        <button type="button" class="wes-aisle-chip suggested-aisle {% if x.is_override %}danger{% endif %}" data-aisle="{{ x.aisle }}">
+          <strong>{% if x.is_override %}Override SKU{% else %}Dãy{% endif %}: {{ x.aisle }}</strong>
+          <small>{{ x.putaway_type }} · Ưu tiên {{ x.priority }}</small>
+          <small>{{ x.note }}</small>
+        </button>
       {% endfor %}
+      </div>
     {% else %}
-      <div class="alert alert-warning py-2">⚠ Chưa có rule gợi ý. Nhân viên scan vị trí thực tế và quản lý kiểm tra lại.</div>
+      <div class="alert alert-warning py-2">Chưa có rule gợi ý. Nhân viên scan vị trí thực tế và quản lý kiểm tra lại.</div>
     {% endif %}
 
     {% if task.suggested_locations %}
-      <hr>
-      <div class="fw-bold mb-2">🎯 Vị trí ưu tiên theo index</div>
+      <div class="wes-section-card-title mt-3">Vị trí ưu tiên theo index</div>
       {% for loc in task.suggested_locations %}
-        <button type="button"
-                class="btn btn-outline-dark w-100 text-start mb-2 suggested-location-btn"
-                data-location="{{ loc.location_id }}">
-          <div class="fw-bold">{{ loc.location_id }}{% if loc.is_full %} · ĐÃ ĐẦY{% endif %}</div>
-          <div class="small text-muted">Dãy {{ loc.aisle }} | PutAway Index {{ loc.putaway_index }} | Còn {{ loc.available_capacity }}/{{ loc.max_capacity }}</div>
+        <button type="button" class="wes-location-choice suggested-location-btn" data-location="{{ loc.location_id }}">
+          <span><strong>{{ loc.location_id }}</strong>{% if loc.is_full %}<small class="text-danger">ĐÃ ĐẦY</small>{% endif %}</span>
+          <small>Dãy {{ loc.aisle }} · Index {{ loc.putaway_index }} · Còn {{ loc.available_capacity }}/{{ loc.max_capacity }}</small>
         </button>
       {% endfor %}
     {% endif %}
-  </div>
-</div>
+  </article>
 
-<form id="putawayForm" class="no-scanner">
-  <input type="hidden" name="queue_id" value="{{ task.queue_id }}">
+  <form id="putawayForm" class="wes-action-form no-scanner mt-3">
+    <input type="hidden" name="queue_id" value="{{ task.queue_id }}">
 
-  <div class="mb-3">
-    <label class="form-label fw-bold">Vị trí</label>
-    <div class="input-group">
-      <input
-        type="text"
-        class="form-control form-control-lg"
-        id="location_id"
-        name="location_id"
-        placeholder="Quét hoặc nhập vị trí"
-        autocomplete="off"
-        required
-      >
+    <label class="wes-big-label">Quét vị trí</label>
+    <div class="input-group input-group-lg mb-3">
+      <input type="text" class="form-control form-control-lg scan-input" id="location_id" name="location_id" placeholder="Quét hoặc nhập vị trí" autocomplete="off" required>
       <button type="button" class="btn btn-dark btn-lg" id="scanLocationBtn">📷</button>
     </div>
+
+    <div id="locationCheckBox" class="alert d-none"></div>
+
+    <label class="wes-big-label">Số lượng cất nguyên PA</label>
+    <input type="number" class="form-control form-control-lg scan-input mb-3" id="qty_putaway" name="qty_putaway" value="{{ task.qty_remain_putaway }}" min="1" max="{{ task.qty_remain_putaway }}" required>
+
+    <button type="submit" class="btn btn-success btn-lg w-100">✅ Xác nhận cất nguyên PA</button>
+  </form>
+
+  <div id="scannerBox" class="scanner-modal d-none">
+    <div class="scanner-header">
+      <div id="scannerTargetLabel" class="fw-bold">Đang quét vị trí</div>
+      <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+    </div>
+    <div id="reader" class="scanner-reader"></div>
   </div>
 
-  <div id="locationCheckBox" class="alert d-none"></div>
+  <div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
 
-  <div class="mb-3">
-    <label class="form-label fw-bold">Số lượng cất nguyên PA</label>
-    <input
-      type="number"
-      class="form-control form-control-lg"
-      id="qty_putaway"
-      name="qty_putaway"
-      value="{{ task.qty_remain_putaway }}"
-      min="1"
-      max="{{ task.qty_remain_putaway }}"
-      required
-    >
-  </div>
-
-  <button type="submit" class="btn btn-success btn-lg w-100">✅ Xác nhận cất nguyên PA</button>
-</form>
-
-<div id="scannerBox" class="scanner-modal d-none">
-  <div class="scanner-header">
-    <div id="scannerTargetLabel" class="fw-bold">Đang quét vị trí</div>
-    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
-  </div>
-  <div id="reader" class="scanner-reader"></div>
-</div>
-
-<div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
-
-<div id="successBox" class="card shadow-sm mt-3 d-none no-scanner">
-  <div class="card-body text-center">
-    <h4 class="fw-bold text-success">✅ CẤT HÀNG THÀNH CÔNG</h4>
-    <hr>
-    <div><b>PO:</b> <span id="successPo">{{ task.po_no }}</span></div>
-    <div><b>Pallet:</b> <span id="successPallet">{{ task.pallet_id }}</span></div>
-    <div><b>Vị trí:</b> <span id="successLocation"></span></div>
-    <div><b>Số lượng:</b> <span id="successQty"></span></div>
+  <div id="successBox" class="wes-success-card mt-3 d-none no-scanner">
+    <div class="wes-success-icon">✅</div>
+    <h4>Cất hàng thành công</h4>
+    <div class="wes-info-grid mt-3">
+      <div><span>PO</span><strong id="successPo">{{ task.po_no }}</strong></div>
+      <div><span>Pallet</span><strong id="successPallet">{{ task.pallet_id }}</strong></div>
+      <div><span>Vị trí</span><strong id="successLocation"></strong></div>
+      <div><span>Số lượng</span><strong id="successQty"></strong></div>
+    </div>
     <div id="successWarning" class="alert alert-warning mt-3 d-none"></div>
-
     <a href="/putaway/scan-pa" class="btn btn-primary w-100 mt-3">Cất pallet tiếp theo</a>
     <a href="/" class="btn btn-secondary w-100 mt-2">Về trang chủ</a>
   </div>
-</div>
 
-<div class="mt-3 no-scanner">
-  <a href="/putaway" class="btn btn-secondary w-100">⬅ Danh sách cất hàng</a>
-</div>
+  <div class="mt-3 no-scanner"><a href="/putaway" class="btn btn-secondary w-100">Danh sách cất hàng</a></div>
 
-<style>
-  .scanner-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    background: #000;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .scanner-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: rgba(0,0,0,.85);
-  }
-
-  .scanner-reader {
-    flex: 1;
-    width: 100%;
-  }
-
-  .scanner-reader video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
-  }
-</style>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script src="/static/js/putaway.js?v=22"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="/static/js/putaway.js?v=22"></script>
 
 {% endif %}
+</section>
 
 {% endblock %}

@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 from math import ceil
 import re
 
@@ -263,7 +264,7 @@ def tao_phieu_lay_hang_theo_cua_hang(db: Session, store_id: str):
 
     meta = _meta_from_rows(rows)
     grouped = {}
-    now = datetime.utcnow()
+    now = now_vn()
 
     for r in rows:
         sku = (r.sku or "").strip().upper()
@@ -569,9 +570,9 @@ def danh_dau_da_in(db: Session, picking_id: int, user_name: str = "developer"):
 
     header.print_status = "PRINTED"
     header.printed_by = user_name
-    header.printed_at = datetime.utcnow()
+    header.printed_at = now_vn()
     header.print_count = (header.print_count or 0) + 1
-    header.last_update = datetime.utcnow()
+    header.last_update = now_vn()
 
     db.commit()
     db.refresh(header)
@@ -850,13 +851,14 @@ def danh_dau_da_in_safe(db: Session, picking_id: int, user_name: str = "develope
     if "printed_by" in ph_cols:
         sets.append("printed_by = :user_name")
     if "printed_at" in ph_cols:
-        sets.append("printed_at = CURRENT_TIMESTAMP")
+        sets.append("printed_at = :now_vn")
     if "print_count" in ph_cols:
         sets.append("print_count = COALESCE(print_count, 0) + 1")
     if "last_update" in ph_cols:
-        sets.append("last_update = CURRENT_TIMESTAMP")
+        sets.append("last_update = :now_vn")
     if not sets:
         return
+    params["now_vn"] = now_vn()
     db.execute(text(f"UPDATE picking_header SET {', '.join(sets)} WHERE picking_id = :picking_id"), params)
     db.commit()
 

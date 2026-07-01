@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -77,8 +78,8 @@ def create_user(
         email=clean_text(email),
         phone=clean_text(phone),
         created_by=clean_text(created_by),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_vn(),
+        updated_at=now_vn(),
     )
     db.add(user)
     return user
@@ -99,14 +100,14 @@ def update_user(
     user.is_active = is_active
     user.email = clean_text(email)
     user.phone = clean_text(phone)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = now_vn()
     db.add(user)
     return user
 
 
 def reset_password(db: Session, user: AppUser, new_password: str = DEFAULT_RESET_PASSWORD):
     user.password_hash = hash_password(new_password)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = now_vn()
     db.add(user)
     return user
 
@@ -194,7 +195,7 @@ def list_settings(db: Session):
 
 def update_settings(db: Session, form_data: dict, updated_by: str = ""):
     rows = db.query(SystemSetting).filter(SystemSetting.is_editable == True).all()
-    now = datetime.utcnow()
+    now = now_vn()
 
     for row in rows:
         form_key = f"setting_{row.setting_key}"

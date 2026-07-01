@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 from collections import defaultdict
 
 from sqlalchemy.orm import Session
@@ -277,7 +278,7 @@ def confirm_staging(
             "message": f"Nhóm phiếu {reference_code} đã xác nhận tập kết trước đó.",
         }
 
-    now = datetime.utcnow()
+    now = now_vn()
     picking_nos = summary.get("picking_nos") or []
 
     pack_headers = db.query(PackHeader).filter(PackHeader.picking_no.in_(picking_nos)).all()

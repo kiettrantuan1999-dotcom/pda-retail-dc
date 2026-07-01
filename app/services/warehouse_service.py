@@ -184,6 +184,110 @@ def _po_line_for_scan_barcode(db: Session, po_no: str, barcode: str):
     return po_line, product
 
 
+
+
+def _calc_queue_remain(queue: InboundQueue) -> int:
+    """Nguồn đúng của Put Away: số đã GR trừ số đã Put Away.
+
+    Không dùng qty_order - qty_received của PO detail vì đó là phần thiếu so với PO,
+    không phải lượng hàng thực tế đang cần cất.
+    """
+    return max(int(queue.qty_gr or 0) - int(queue.qty_putaway or 0), 0)
+
+
+def _sync_queue_putaway_state(queue: InboundQueue, *, completed_pa: bool = False) -> int:
+    """Đồng bộ lại qty_remain_putaway/flow_status từ qty_gr - qty_putaway."""
+    remain = _calc_queue_remain(queue)
+    queue.qty_remain_putaway = remain
+
+    current_status = (queue.flow_status or "").upper()
+    if remain <= 0:
+        queue.flow_status = "DONE"
+    elif int(queue.qty_putaway or 0) > 0:
+        queue.flow_status = "PARTIAL"
+    elif completed_pa or current_status in ["WAIT_PUTAWAY", "PARTIAL", "DONE"]:
+        queue.flow_status = "WAIT_PUTAWAY"
+    else:
+        queue.flow_status = "DRAFT"
+
+    return remain
+
+
+def _sync_po_line_received(db: Session, po_no: str, sku: str) -> None:
+    """Cập nhật PO detail theo tổng GR thực tế của SKU trong inbound_queue."""
+    po_line = _po_line_for_sku(db, po_no, sku)
+    if not po_line:
+        return
+    received = _calc_po_line_received(db, po_no, sku)
+    po_line.qty_received = received
+    po_line.qty_remaining = max(int(po_line.qty_order or 0) - received, 0)
+    po_line.status = _receipt_status(received, int(po_line.qty_order or 0))
+    po_line.last_update = datetime.utcnow()
+
+
+def _ensure_queue_from_pallet_detail(db: Session, po_no: str, pallet_id: str) -> None:
+    """Đảm bảo 1 dòng PalletDetail = 1 dòng InboundQueue theo PA + SKU.
+
+    Fix an toàn cho case mixed SKU: nếu đã lưu pallet_detail nhưng thiếu inbound_queue
+    thì Put Away sẽ mất SKU. Hàm này tạo lại queue thiếu và đồng bộ remain.
+    """
+    po_no = (po_no or "").strip()
+    pallet_id = (pallet_id or "").strip().upper()
+    if not po_no or not pallet_id:
+        return
+
+    details = (
+        db.query(PalletDetail)
+        .filter(PalletDetail.po_no == po_no, PalletDetail.pallet_id == pallet_id)
+        .all()
+    )
+    now = datetime.utcnow()
+
+    for d in details:
+        sku = (d.sku or "").strip()
+        if not sku:
+            continue
+
+        queue = (
+            db.query(InboundQueue)
+            .filter(
+                func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no),
+                InboundQueue.pallet_id == pallet_id,
+                func.upper(func.trim(InboundQueue.sku)) == sku.upper(),
+            )
+            .first()
+        )
+
+        if queue:
+            if int(queue.qty_gr or 0) != int(d.qty_gr or 0):
+                queue.qty_gr = int(d.qty_gr or 0)
+            queue.qty_putaway = int(queue.qty_putaway or 0)
+            _sync_queue_putaway_state(queue, completed_pa=(d.status or "").upper() in ["WAIT_PUTAWAY", "PARTIAL", "DONE"])
+            queue.last_update = now
+        else:
+            qty_gr = int(d.qty_gr or 0)
+            qty_putaway = int(d.qty_putaway or 0)
+            remain = max(qty_gr - qty_putaway, 0)
+            status = (d.status or "DRAFT").upper()
+            if remain <= 0:
+                flow_status = "DONE"
+            elif status in ["WAIT_PUTAWAY", "PARTIAL", "DONE"]:
+                flow_status = "WAIT_PUTAWAY" if qty_putaway <= 0 else "PARTIAL"
+            else:
+                flow_status = "DRAFT"
+            db.add(InboundQueue(
+                po_no=po_no,
+                pallet_id=pallet_id,
+                barcode=d.barcode,
+                sku=sku,
+                qty_gr=qty_gr,
+                qty_putaway=qty_putaway,
+                qty_remain_putaway=remain,
+                flow_status=flow_status,
+                last_update=now,
+            ))
+
+
 def _calc_po_line_received(db: Session, po_no: str, sku: str, barcode: str = "") -> int:
     po_no = _clean_lookup_text(po_no)
     sku = _clean_lookup_text(sku).upper()
@@ -407,7 +511,8 @@ def confirm_gr(
 
     if queue:
         queue.qty_gr = old_qty + qty_total
-        queue.qty_remain_putaway = int(queue.qty_remain_putaway or 0) + qty_total
+        # Remain Put Away luôn tính theo GR thực tế - đã Put Away, không cộng dồn mù.
+        _sync_queue_putaway_state(queue, completed_pa=False)
         queue.flow_status = "DRAFT"
         queue.last_update = now
     else:
@@ -462,11 +567,9 @@ def confirm_gr(
         user_name=user_name,
     )
 
-    # Đồng bộ số lượng đã nhận về PO detail để màn hình PO đối chiếu nhanh và import sau không mất trạng thái.
-    po_line.qty_received = _calc_po_line_received(db, po_no, sku) + qty_total
-    po_line.qty_remaining = max(int(po_line.qty_order or 0) - int(po_line.qty_received or 0), 0)
-    po_line.status = _receipt_status(int(po_line.qty_received or 0), int(po_line.qty_order or 0))
-    po_line.last_update = now
+    # Đồng bộ số lượng đã nhận về PO detail theo tổng GR thực tế trong inbound_queue.
+    # Lưu ý: queue hiện tại đã được cộng qty_total nhưng chưa commit, query cùng session vẫn thấy giá trị mới.
+    _sync_po_line_received(db, po_no, sku)
 
     db.add(log)
     db.add(AuditLog(
@@ -552,10 +655,13 @@ def complete_gr_pallet(
     if not pallet_id:
         raise ValueError("Vui lòng nhập PA trước khi hoàn tất PA")
 
+    # Đảm bảo mixed SKU không bị mất dòng: 1 dòng PalletDetail phải có 1 queue Put Away.
+    _ensure_queue_from_pallet_detail(db, po_no, pallet_id)
+
     queues = (
         db.query(InboundQueue)
         .filter(
-            InboundQueue.po_no == po_no,
+            func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no),
             InboundQueue.pallet_id == pallet_id,
         )
         .order_by(InboundQueue.queue_id.asc())
@@ -581,11 +687,12 @@ def complete_gr_pallet(
     for q in queues:
         status = (q.flow_status or "").upper()
         if status == "DRAFT":
-            q.flow_status = "WAIT_PUTAWAY"
+            _sync_queue_putaway_state(q, completed_pa=True)
             q.last_update = now
             changed += 1
         elif status == "WAIT_PUTAWAY":
             # Idempotent: PA đã hoàn tất trước đó.
+            _sync_queue_putaway_state(q, completed_pa=True)
             q.last_update = now
         else:
             raise ValueError(f"Dòng SKU {q.sku} đang ở trạng thái {q.flow_status}, không thể hoàn tất PA")
@@ -614,7 +721,7 @@ def complete_gr_pallet(
 
     total_sku = len(queues)
     total_qty = sum(int(q.qty_gr or 0) for q in queues)
-    total_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
+    total_remain = sum(_calc_queue_remain(q) for q in queues)
 
     db.add(AuditLog(
         operation="GR_COMPLETE_PA",
@@ -753,13 +860,8 @@ def update_gr_qty_after_confirm(
     if gr_log:
         gr_log.qty_gr = qty_total
 
-    po_line = _po_line_for_sku(db, queue.po_no, queue.sku)
-    if po_line:
-        # Tính lại từ inbound_queue, gồm dòng hiện tại đã set qty_total nhưng chưa commit.
-        po_line.qty_received = _calc_po_line_received(db, queue.po_no, queue.sku)
-        po_line.qty_remaining = max(int(po_line.qty_order or 0) - int(po_line.qty_received or 0), 0)
-        po_line.status = _receipt_status(int(po_line.qty_received or 0), int(po_line.qty_order or 0))
-        po_line.last_update = now
+    _sync_queue_putaway_state(queue, completed_pa=False)
+    _sync_po_line_received(db, queue.po_no, queue.sku)
 
     db.add(AuditLog(
         operation="GR_EDIT_QTY",
@@ -802,13 +904,31 @@ def update_gr_qty_after_confirm(
     }
 
 def get_wait_putaway_tasks(db: Session):
-    return (
+    rows = (
         db.query(InboundQueue)
         .filter(InboundQueue.flow_status.in_(["WAIT_PUTAWAY", "PARTIAL"]))
         .order_by(InboundQueue.last_update.asc())
         .limit(100)
         .all()
     )
+
+    # Hiển thị Put Away theo GR thực tế: remain = qty_gr - qty_putaway.
+    # Loại những dòng stale đã hết hàng cần cất.
+    result = []
+    changed = False
+    for q in rows:
+        old_remain = int(q.qty_remain_putaway or 0)
+        old_status = q.flow_status
+        remain = _sync_queue_putaway_state(q, completed_pa=True)
+        if remain > 0:
+            result.append(q)
+        if old_remain != int(q.qty_remain_putaway or 0) or old_status != q.flow_status:
+            changed = True
+
+    if changed:
+        db.commit()
+
+    return result
 
 
 def _normalize_putaway_type(value: str) -> str:
@@ -1008,6 +1128,22 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
     """
     pallet_id = pallet_id.strip().upper()
 
+    raw_queues = (
+        db.query(InboundQueue)
+        .filter(
+            InboundQueue.pallet_id == pallet_id,
+            InboundQueue.flow_status.in_(["WAIT_PUTAWAY", "PARTIAL"]),
+        )
+        .order_by(InboundQueue.queue_id.asc())
+        .all()
+    )
+
+    if not raw_queues:
+        raise ValueError("Không tìm thấy PA cần Put Away")
+
+    # Nếu pallet_detail có SKU bị thiếu queue từ phiên bản cũ, tạo lại trước khi load.
+    _ensure_queue_from_pallet_detail(db, raw_queues[0].po_no, pallet_id)
+
     queues = (
         db.query(InboundQueue)
         .filter(
@@ -1018,8 +1154,14 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
         .all()
     )
 
+    for q in queues:
+        _sync_queue_putaway_state(q, completed_pa=True)
+
+    queues = [q for q in queues if _calc_queue_remain(q) > 0]
+
     if not queues:
-        raise ValueError("Không tìm thấy PA cần Put Away")
+        db.commit()
+        raise ValueError("PA không còn số lượng cần Put Away")
 
     sku_list = sorted({q.sku for q in queues if q.sku})
     products = {}
@@ -1039,12 +1181,12 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
     total_sku = len(queues)
     total_qty_gr = sum(int(q.qty_gr or 0) for q in queues)
     total_qty_putaway = sum(int(q.qty_putaway or 0) for q in queues)
-    total_qty_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
+    total_qty_remain = sum(_calc_queue_remain(q) for q in queues)
 
     detail_lines = []
     dominant_queue = sorted(
         queues,
-        key=lambda x: int(x.qty_remain_putaway or x.qty_gr or 0),
+        key=lambda x: _calc_queue_remain(x),
         reverse=True,
     )[0]
 
@@ -1071,7 +1213,7 @@ def get_putaway_by_pallet(db: Session, pallet_id: str):
             "putaway_type_label": _putaway_type_label(putaway_type),
             "qty_gr": int(q.qty_gr or 0),
             "qty_putaway": int(q.qty_putaway or 0),
-            "qty_remain_putaway": int(q.qty_remain_putaway or 0),
+            "qty_remain_putaway": _calc_queue_remain(q),
             "flow_status": q.flow_status,
         })
 
@@ -1137,6 +1279,8 @@ def confirm_putaway(
         if not first_queue:
             raise ValueError("Không tìm thấy task Put Away")
 
+        _ensure_queue_from_pallet_detail(db, first_queue.po_no, first_queue.pallet_id)
+
         queues = (
             db.query(InboundQueue)
             .filter(
@@ -1147,10 +1291,15 @@ def confirm_putaway(
             .all()
         )
 
+        for q in queues:
+            _sync_queue_putaway_state(q, completed_pa=True)
+
+        queues = [q for q in queues if _calc_queue_remain(q) > 0]
+
         if not queues:
             raise ValueError("PA không còn dòng nào cần Put Away")
 
-        total_remain = sum(int(q.qty_remain_putaway or 0) for q in queues)
+        total_remain = sum(_calc_queue_remain(q) for q in queues)
         if total_remain <= 0:
             raise ValueError("PA không còn số lượng cần Put Away")
 
@@ -1195,7 +1344,7 @@ def confirm_putaway(
         total_putaway = 0
 
         for queue in queues:
-            line_qty = int(queue.qty_remain_putaway or 0)
+            line_qty = _calc_queue_remain(queue)
             if line_qty <= 0:
                 continue
 

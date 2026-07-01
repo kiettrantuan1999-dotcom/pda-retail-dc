@@ -1,265 +1,127 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h4 class="fw-bold mb-0">🚚 Tập kết hàng</h4>
-        <div class="text-muted">Scan barcode phiếu lấy hàng để kiểm số kiện sau đóng hàng và xác nhận tập kết</div>
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-staging">
+    <a href="/" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Outbound</span>
+      <h4>Tập kết hàng</h4>
+      <p>Scan phiếu lấy hàng để kiểm số kiện và xác nhận tập kết theo cửa hàng.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="/">🏠 Trang chủ</a>
-</div>
+  </div>
 
-{% if error %}
-<div class="alert alert-danger">{{ error }}</div>
-{% endif %}
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
 
-{% if success %}
-<div class="alert alert-success">{{ success }}</div>
-{% endif %}
+  <div class="wes-action-form mb-3">
+    <form id="stagingScanForm" method="get" action="/staging">
+      <label class="wes-big-label">Mã phiếu lấy hàng</label>
+      <div class="input-group input-group-lg mb-3">
+        <input id="staging_do_no" name="do_no" class="form-control form-control-lg scan-input" value="{{ do_no }}" placeholder="Quét mã phiếu C/L" autocomplete="off" autofocus>
+        <button id="scanStagingBtn" class="btn btn-dark btn-lg" type="button">📷</button>
+        <button class="btn btn-primary btn-lg" type="submit">Tìm</button>
+      </div>
+      <div class="form-text">Scan barcode trên Picking List. Hệ thống tự gom cả phiếu chẵn/lẻ cùng cửa hàng.</div>
+    </form>
+  </div>
 
-<div class="card shadow-sm mb-3">
-    <div class="card-body">
-        <form id="stagingScanForm" method="get" action="/staging">
-            <label class="form-label fw-bold">Scan / nhập mã phiếu lấy hàng</label>
-            <div class="input-group input-group-lg">
-                <input
-                    id="staging_do_no"
-                    name="do_no"
-                    class="form-control"
-                    value="{{ do_no }}"
-                    placeholder="Ví dụ: 30062026-0000002ACV-C hoặc 30062026-0000002ACV-L"
-                    autocomplete="off"
-                    autofocus
-                >
-                <button id="scanStagingBtn" class="btn btn-dark" type="button">📷</button>
-                <button class="btn btn-primary" type="submit">Tìm</button>
-            </div>
-            <div class="form-text">Scan barcode trên Picking List. Hệ thống sẽ tự gom cả phiếu chẵn/lẻ của cùng cửa hàng.</div>
-        </form>
-    </div>
-</div>
-
-
-<div id="scannerBox" class="scanner-modal d-none">
+  <div id="scannerBox" class="scanner-modal d-none">
     <div class="scanner-header">
-        <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
-        <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+      <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
+      <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
     </div>
     <div id="reader" class="scanner-reader"></div>
-</div>
+  </div>
 
-{% if summary %}
-<div class="card shadow-sm mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div class="fw-bold">Thông tin tập kết theo cửa hàng</div>
-        {% if summary.staging_status == "DONE" %}
-            <span class="badge bg-success">Đã xác nhận</span>
-        {% else %}
-            <span class="badge bg-warning text-dark">Chờ tập kết</span>
-        {% endif %}
+  {% if summary %}
+  <article class="wes-work-card mb-3">
+    <div class="wes-work-head">
+      <div>
+        <div class="wes-work-label">Nhóm tập kết</div>
+        <div class="wes-work-code">{{ summary.reference_code }}</div>
+        <div class="text-muted small">{{ summary.store_id }} - {{ summary.store_name }}</div>
+      </div>
+      <div class="text-end">
+        {% if summary.staging_status == "DONE" %}<span class="badge bg-success">Đã xác nhận</span>{% else %}<span class="badge bg-warning text-dark">Chờ tập kết</span>{% endif %}
+      </div>
     </div>
-    <div class="card-body">
-        <div class="row g-2 mb-3">
-            <div class="col-12">
-                <div class="p-3 bg-light rounded">
-                    <div class="text-muted small">Mã phiếu scan / Nhóm tập kết</div>
-                    <div class="fs-4 fw-bold">{{ summary.reference_code }}</div>
-                    <div class="small text-muted">{{ summary.store_id }} - {{ summary.store_name }}</div>
-                    <div class="small text-muted">Tổng DO gốc: {{ summary.total_do }}{% if summary.do_no %} | {{ summary.do_no }}{% endif %}</div>
-                </div>
-            </div>
 
-            <div class="col-4">
-                <div class="p-3 border rounded text-center h-100">
-                    <div class="text-muted small">Tổng kiện</div>
-                    <div class="fs-2 fw-bold">{{ summary.total_package }}</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="p-3 border rounded text-center h-100">
-                    <div class="text-muted small">Kiện chẵn</div>
-                    <div class="fs-2 fw-bold">{{ summary.even_package }}</div>
-                </div>
-            </div>
-            <div class="col-4">
-                <div class="p-3 border rounded text-center h-100">
-                    <div class="text-muted small">Kiện lẻ</div>
-                    <div class="fs-2 fw-bold">{{ summary.odd_package }}</div>
-                </div>
-            </div>
+    <div class="wes-kpi-grid my-3">
+      <div class="wes-kpi-card compact"><span>Tổng kiện</span><strong>{{ summary.total_package }}</strong></div>
+      <div class="wes-kpi-card compact"><span>Kiện chẵn</span><strong>{{ summary.even_package }}</strong></div>
+      <div class="wes-kpi-card compact"><span>Kiện lẻ</span><strong>{{ summary.odd_package }}</strong></div>
+      <div class="wes-kpi-card compact"><span>SKU line</span><strong>{{ summary.total_sku_line }}</strong></div>
+      <div class="wes-kpi-card compact"><span>Tổng SL</span><strong>{{ summary.total_qty }}</strong></div>
+      <div class="wes-kpi-card compact"><span>Tổng DO</span><strong>{{ summary.total_do }}</strong></div>
+    </div>
 
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Tổng SKU line</div>
-                    <div class="fs-5 fw-bold">{{ summary.total_sku_line }}</div>
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Tổng số lượng</div>
-                    <div class="fs-5 fw-bold">{{ summary.total_qty }}</div>
-                </div>
-            </div>
+    <div class="wes-info-grid">
+      <div><span>Mã chuyến</span><strong>{{ summary.trip_no or '-' }}</strong></div>
+      <div><span>Wave</span><strong>{{ summary.wave or '-' }}</strong></div>
+      <div><span>Khung giờ</span><strong>{{ summary.khung_gio or '-' }}</strong></div>
+      <div><span>Loại giao</span><strong>{{ summary.loai_giao or '-' }}</strong></div>
+      <div><span>Đóng bởi</span><strong>{{ summary.packed_by or '-' }}</strong></div>
+      <div><span>Đóng cuối</span><strong>{{ summary.last_packed_at.strftime('%Y-%m-%d %H:%M:%S') if summary.last_packed_at else '-' }}</strong></div>
+    </div>
 
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Mã chuyến / Wave</div>
-                    <div class="fw-bold">{{ summary.trip_no or '-' }} / {{ summary.wave or '-' }}</div>
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Khung giờ / Loại giao</div>
-                    <div class="fw-bold">{{ summary.khung_gio or '-' }} / {{ summary.loai_giao or '-' }}</div>
-                </div>
-            </div>
+    <div class="wes-section-card-title mt-3">Chi tiết phiếu</div>
+    <div class="table-responsive mt-2">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead><tr><th>Phiếu</th><th>Loại</th><th class="text-end">SKU</th><th class="text-end">SL</th><th class="text-end">Kiện</th><th>Người đóng</th></tr></thead>
+        <tbody>
+          {% for line in summary.lines %}
+          <tr>
+            <td>{{ line.picking_no }}</td><td>{{ line.pack_type_name }}</td><td class="text-end">{{ line.sku_line_count }}</td><td class="text-end">{{ line.total_qty }}</td><td class="text-end fw-bold">{{ line.actual_package_qty }}</td><td>{{ line.packed_by }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Đóng hàng bởi</div>
-                    <div class="fw-bold">{{ summary.packed_by or '-' }}</div>
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="p-3 border rounded h-100">
-                    <div class="text-muted small">Thời gian đóng hàng cuối</div>
-                    <div class="fw-bold">
-                        {{ summary.last_packed_at.strftime('%Y-%m-%d %H:%M:%S') if summary.last_packed_at else '-' }}
-                    </div>
-                </div>
-            </div>
+    {% if summary.staging_status == "DONE" %}
+      <div class="alert alert-success mt-3 mb-0">Đã xác nhận tập kết bởi <strong>{{ summary.confirm_user or '-' }}</strong> lúc <strong>{{ summary.confirm_time.strftime('%Y-%m-%d %H:%M:%S') if summary.confirm_time else '-' }}</strong>.</div>
+    {% else %}
+      <form method="post" action="/staging/confirm" class="mt-3">
+        <input type="hidden" name="do_no" value="{{ summary.reference_code }}">
+        <div class="form-check mb-3 wes-check-row">
+          <input class="form-check-input" type="checkbox" value="YES" id="physical_check" name="physical_check">
+          <label class="form-check-label fw-bold" for="physical_check">Tôi đã kiểm đủ tổng kiện, kiện chẵn và kiện lẻ theo thực tế.</label>
         </div>
+        <label class="wes-big-label">Ghi chú</label>
+        <textarea name="remark" class="form-control form-control-lg mb-3" rows="2" placeholder="Ví dụ: đủ hàng, bao bì nguyên vẹn"></textarea>
+        <button class="btn btn-success btn-lg w-100" type="submit">✅ Xác nhận tập kết hoàn tất</button>
+      </form>
+    {% endif %}
+  </article>
+  {% endif %}
 
-        <div class="table-responsive mb-3">
-            <table class="table table-sm table-striped align-middle">
-                <thead>
-                    <tr>
-                        <th>Phiếu</th>
-                        <th>Loại</th>
-                        <th class="text-end">SKU line</th>
-                        <th class="text-end">Số lượng</th>
-                        <th class="text-end">Kiện</th>
-                        <th>Người đóng</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for line in summary.lines %}
-                    <tr>
-                        <td>{{ line.picking_no }}</td>
-                        <td>{{ line.pack_type_name }}</td>
-                        <td class="text-end">{{ line.sku_line_count }}</td>
-                        <td class="text-end">{{ line.total_qty }}</td>
-                        <td class="text-end fw-bold">{{ line.actual_package_qty }}</td>
-                        <td>{{ line.packed_by }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+  <div class="wes-section-label">Cửa hàng đang chờ tập kết</div>
+  <div class="wes-mobile-list">
+    {% for r in wait_rows %}
+    <article class="wes-work-card">
+      <div class="wes-work-head">
+        <div>
+          <div class="wes-work-label">Mã scan</div>
+          <div class="wes-work-code">{{ r.reference_code }}</div>
+          <div class="text-muted small">{{ r.store_id }} - {{ r.store_name }}</div>
         </div>
+        <a class="btn btn-outline-primary btn-sm" href="/staging?do_no={{ r.reference_code }}">Mở</a>
+      </div>
+      <div class="wes-info-grid mt-3">
+        <div><span>Chuyến</span><strong>{{ r.trip_no or '-' }}</strong></div>
+        <div><span>Wave</span><strong>{{ r.wave or '-' }}</strong></div>
+        <div><span>Tổng kiện</span><strong>{{ r.total_package }}</strong></div>
+        <div><span>Chẵn / Lẻ</span><strong>{{ r.even_package }} / {{ r.odd_package }}</strong></div>
+      </div>
+    </article>
+    {% else %}
+    <div class="wes-empty-state"><div class="wes-empty-icon">✅</div><strong>Không có cửa hàng chờ tập kết</strong><small>Danh sách sẽ có sau khi đóng hàng.</small></div>
+    {% endfor %}
+  </div>
 
-        {% if summary.staging_status == "DONE" %}
-            <div class="alert alert-success mb-0">
-                Nhóm phiếu này đã được xác nhận tập kết bởi
-                <strong>{{ summary.confirm_user or '-' }}</strong>
-                lúc
-                <strong>{{ summary.confirm_time.strftime('%Y-%m-%d %H:%M:%S') if summary.confirm_time else '-' }}</strong>.
-            </div>
-        {% else %}
-            <form method="post" action="/staging/confirm">
-                <input type="hidden" name="do_no" value="{{ summary.reference_code }}">
-
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" value="YES" id="physical_check" name="physical_check">
-                    <label class="form-check-label fw-bold" for="physical_check">
-                        Tôi đã kiểm đủ tổng kiện, kiện chẵn và kiện lẻ theo thực tế.
-                    </label>
-                </div>
-
-                <label class="form-label">Ghi chú</label>
-                <textarea name="remark" class="form-control mb-3" rows="2" placeholder="Ví dụ: đủ hàng, bao bì nguyên vẹn"></textarea>
-
-                <button class="btn btn-success btn-lg w-100" type="submit">
-                    ✅ Xác nhận tập kết hoàn tất
-                </button>
-            </form>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
-
-<div class="card shadow-sm">
-    <div class="card-header fw-bold">Danh sách cửa hàng đang chờ tập kết</div>
-    <div class="table-responsive">
-        <table class="table table-sm table-striped align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Mã scan</th>
-                    <th>Cửa hàng</th>
-                    <th>Mã chuyến</th>
-                    <th>Wave</th>
-                    <th class="text-end">Tổng kiện</th>
-                    <th class="text-end">Chẵn</th>
-                    <th class="text-end">Lẻ</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for r in wait_rows %}
-                <tr>
-                    <td class="fw-bold">{{ r.reference_code }}</td>
-                    <td>{{ r.store_id }} - {{ r.store_name }}</td>
-                    <td>{{ r.trip_no or "-" }}</td>
-                    <td>{{ r.wave or "-" }}</td>
-                    <td class="text-end">{{ r.total_package }}</td>
-                    <td class="text-end">{{ r.even_package }}</td>
-                    <td class="text-end">{{ r.odd_package }}</td>
-                    <td class="text-end">
-                        <a class="btn btn-sm btn-outline-primary" href="/staging?do_no={{ r.reference_code }}">Mở</a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-4">Không có cửa hàng chờ tập kết.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-
-<style>
-  .scanner-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    background: #000;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .scanner-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: rgba(0,0,0,.85);
-  }
-
-  .scanner-reader {
-    flex: 1;
-    width: 100%;
-  }
-
-  .scanner-reader video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
-  }
-</style>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script src="/static/js/staging_scan.js?v=53.2"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="/static/js/staging_scan.js?v=53.2"></script>
+</section>
 
 {% endblock %}

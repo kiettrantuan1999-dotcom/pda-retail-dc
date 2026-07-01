@@ -119,7 +119,26 @@
   {% block content %}{% endblock %}
 </main>
 
-<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
+{% if user %}
+<nav class="wes-bottom-nav" aria-label="Điều hướng nhanh trên điện thoại">
+  <a href="/" class="wes-bottom-item" data-nav-path="/">
+    <span class="wes-bottom-icon">⌂</span><span>Home</span>
+  </a>
+  <a href="/gr" class="wes-bottom-item" data-nav-path="/gr">
+    <span class="wes-bottom-icon">▣</span><span>Inbound</span>
+  </a>
+  <a href="/picking" class="wes-bottom-item" data-nav-path="/picking,/pack,/staging">
+    <span class="wes-bottom-icon">⇄</span><span>Outbound</span>
+  </a>
+  <a href="/inventory" class="wes-bottom-item" data-nav-path="/inventory,/audit,/logs,/admin,/supervisor">
+    <span class="wes-bottom-icon">☰</span><span>Thêm</span>
+  </a>
+</nav>
+{% endif %}
+
+<button type="button" class="wes-floating-scan d-none" id="wesFloatingScanBtn" aria-label="Quét mã nhanh">▥</button>
+
+<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3 wes-toast-zone">
   <div id="appToast" class="toast text-bg-dark border-0 shadow" role="alert">
     <div class="toast-body" id="toastBody"></div>
   </div>

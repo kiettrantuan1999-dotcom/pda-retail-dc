@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -272,7 +273,7 @@ def confirm_pack(
     total_qty = sum(int(x.qty_pick or 0) for x in details)
     sku_line_count = len(details)
     do_nos = _unique_do_nos(details)
-    now = datetime.utcnow()
+    now = now_vn()
 
     header.pack_status = "DONE"
     header.packed_by = user_name or ""

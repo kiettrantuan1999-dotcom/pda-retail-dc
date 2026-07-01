@@ -52,3 +52,53 @@
     });
   });
 })();
+
+(function () {
+  function setActiveBottomNav() {
+    const path = window.location.pathname || "/";
+    document.querySelectorAll(".wes-bottom-item").forEach(function (item) {
+      const patterns = (item.dataset.navPath || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      const active = patterns.some(function (p) {
+        if (p === "/") return path === "/";
+        return path === p || path.startsWith(p + "/");
+      });
+      item.classList.toggle("active", active);
+    });
+  }
+
+  function setupFloatingScan() {
+    const btn = document.getElementById("wesFloatingScanBtn");
+    if (!btn) return;
+    const hasScanButton = !!document.querySelector(".scan-btn, [data-target], #openScannerBtn, #startScannerBtn");
+    const hasScanInput = !!document.querySelector(".scan-input, input[id*='barcode'], input[id*='do_no'], input[id*='po_no'], input[id*='pallet']");
+    if (!hasScanButton && !hasScanInput) return;
+
+    btn.classList.remove("d-none");
+    btn.addEventListener("click", function () {
+      const firstScanButton = document.querySelector(".scan-btn:not([disabled]), [data-target]:not([disabled]), #openScannerBtn:not([disabled]), #startScannerBtn:not([disabled])");
+      if (firstScanButton) {
+        firstScanButton.click();
+        return;
+      }
+      const firstInput = document.querySelector(".scan-input, input[id*='barcode'], input[id*='do_no'], input[id*='po_no'], input[id*='pallet']");
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select && firstInput.select();
+      }
+    });
+  }
+
+  function installPhoneFeedback() {
+    document.addEventListener("click", function (e) {
+      const target = e.target.closest(".wes-task-card,.wes-mini-card,.btn,.wes-bottom-item");
+      if (!target || !navigator.vibrate) return;
+      navigator.vibrate(12);
+    }, { passive: true });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    setActiveBottomNav();
+    setupFloatingScan();
+    installPhoneFeedback();
+  });
+})();

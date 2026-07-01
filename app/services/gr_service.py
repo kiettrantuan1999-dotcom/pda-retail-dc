@@ -1,9 +1,10 @@
 from datetime import datetime
+from app.utils.timezone import now_vn
 from app.db import supabase
 
 
 def confirm_gr(po_no: str, pallet_id: str, barcode: str, qty: int):
-    now = datetime.utcnow().isoformat()
+    now = now_vn().isoformat()
 
     # Step 1: Check PO
     po_header = (

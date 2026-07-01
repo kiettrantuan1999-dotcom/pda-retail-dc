@@ -1,107 +1,59 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3 no-scanner">
-  <h4 class="fw-bold mb-0">📷 Quét PA/Pallet</h4>
-  <div class="text-muted">Quét PA để load thông tin SKU, chẵn/lẻ và dãy gợi ý.</div>
-</div>
-
-<div class="card shadow-sm no-scanner">
-  <div class="card-body">
-    <div class="mb-3">
-      <label class="form-label fw-bold">Mã PA/Pallet</label>
-      <div class="input-group">
-        <input
-          type="text"
-          class="form-control form-control-lg"
-          id="pallet_id"
-          placeholder="Quét hoặc nhập mã PA"
-          autocomplete="off"
-        >
-        <button type="button" class="btn btn-dark btn-lg scan-btn" id="scanPalletBtn">
-          📷
-        </button>
-      </div>
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-putaway no-scanner">
+    <a href="/putaway" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Put Away</span>
+      <h4>Quét PA/Pallet</h4>
+      <p>Quét PA để load thông tin SKU, chẵn/lẻ và dãy gợi ý.</p>
     </div>
-
-    <button type="button" class="btn btn-primary btn-lg w-100" id="findPalletBtn">
-      TÌM PA
-    </button>
   </div>
-</div>
 
-<div id="previewBox" class="card shadow-sm mt-3 d-none no-scanner">
-  <div class="card-body">
+  <div class="wes-action-form no-scanner">
+    <label class="wes-big-label">Mã PA/Pallet</label>
+    <div class="input-group input-group-lg mb-3">
+      <input type="text" class="form-control form-control-lg scan-input" id="pallet_id" placeholder="Quét hoặc nhập mã PA" autocomplete="off">
+      <button type="button" class="btn btn-dark btn-lg scan-btn" id="scanPalletBtn">📷</button>
+    </div>
+    <button type="button" class="btn btn-primary btn-lg w-100" id="findPalletBtn">Tìm PA</button>
+  </div>
+
+  <div id="previewBox" class="wes-work-card mt-3 d-none no-scanner">
     <div id="typeBadge" class="alert mb-3 fw-bold text-center"></div>
-
-    <div class="row g-2 small">
-      <div class="col-4 text-muted">PO</div><div class="col-8 fw-bold" id="poNo">-</div>
-      <div class="col-4 text-muted">PA</div><div class="col-8 fw-bold" id="paCode">-</div>
-      <div class="col-4 text-muted">SKU</div><div class="col-8 fw-bold" id="sku">-</div>
-      <div class="col-4 text-muted">Tên hàng</div><div class="col-8 fw-bold" id="productName">-</div>
-      <div class="col-4 text-muted">Barcode</div><div class="col-8 fw-bold" id="barcode">-</div>
-      <div class="col-4 text-muted">Category</div><div class="col-8 fw-bold" id="category">-</div>
-      <div class="col-4 text-muted">PCB</div><div class="col-8 fw-bold" id="pcb">-</div>
-      <div class="col-4 text-muted">SL cần cất</div><div class="col-8 fw-bold text-danger" id="qtyRemain">-</div>
+    <div class="wes-info-grid">
+      <div><span>PO</span><strong id="poNo">-</strong></div>
+      <div><span>PA</span><strong id="paCode">-</strong></div>
+      <div><span>SKU</span><strong id="sku">-</strong></div>
+      <div><span>PCB</span><strong id="pcb">-</strong></div>
+      <div class="span-2"><span>Tên hàng</span><strong id="productName">-</strong></div>
+      <div class="span-2"><span>Barcode</span><strong id="barcode">-</strong></div>
+      <div><span>Category</span><strong id="category">-</strong></div>
+      <div><span>SL cần cất</span><strong class="text-danger" id="qtyRemain">-</strong></div>
     </div>
 
-    <hr>
-    <div class="fw-bold mb-2">🧭 Dãy gợi ý</div>
+    <div class="wes-section-card-title mt-3">Dãy gợi ý</div>
     <div id="suggestionSource" class="text-muted small mb-2"></div>
     <div id="suggestionList"></div>
 
-    <a id="goPutawayBtn" href="#" class="btn btn-success btn-lg w-100 mt-3">
-      TIẾP TỤC SCAN LOCATION
-    </a>
+    <a id="goPutawayBtn" href="#" class="btn btn-success btn-lg w-100 mt-3">Tiếp tục scan location</a>
   </div>
-</div>
 
-<div id="scannerBox" class="scanner-modal d-none">
-  <div class="scanner-header">
-    <div id="scannerTargetLabel" class="fw-bold">Đưa mã PA vào khung để quét</div>
-    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+  <div id="scannerBox" class="scanner-modal d-none">
+    <div class="scanner-header">
+      <div id="scannerTargetLabel" class="fw-bold">Đưa mã PA vào khung để quét</div>
+      <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
+    </div>
+    <div id="reader" class="scanner-reader"></div>
   </div>
-  <div id="reader" class="scanner-reader"></div>
-</div>
 
-<div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
+  <div id="resultBox" class="alert mt-3 d-none no-scanner"></div>
 
-<div class="mt-3 no-scanner">
-  <a href="/putaway" class="btn btn-secondary w-100">⬅ Danh sách cất hàng</a>
-</div>
+  <div class="mt-3 no-scanner"><a href="/putaway" class="btn btn-secondary w-100">Danh sách cất hàng</a></div>
 
-<style>
-  .scanner-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    background: #000;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .scanner-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: rgba(0,0,0,.85);
-  }
-
-  .scanner-reader {
-    flex: 1;
-    width: 100%;
-  }
-
-  .scanner-reader video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
-  }
-</style>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script src="/static/js/putaway_scan_pa.js?v=22"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="/static/js/putaway_scan_pa.js?v=22"></script>
+</section>
 
 {% endblock %}

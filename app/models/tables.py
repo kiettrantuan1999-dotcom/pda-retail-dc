@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils.timezone import now_vn
 
 
 # =========================
@@ -23,8 +24,8 @@ class AppUser(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by: Mapped[str] = mapped_column(String(100), default="")
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class AppRole(Base):
@@ -35,7 +36,7 @@ class AppRole(Base):
     role_name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class AppPermission(Base):
@@ -46,7 +47,7 @@ class AppPermission(Base):
     permission_name: Mapped[str] = mapped_column(String(255), nullable=False)
     module_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class RolePermission(Base):
@@ -55,7 +56,7 @@ class RolePermission(Base):
     role_permission_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role_code: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     permission_code: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (UniqueConstraint("role_code", "permission_code", name="uq_role_permission"),)
 
@@ -72,8 +73,8 @@ class SystemSetting(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     is_editable: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_by: Mapped[str] = mapped_column(String(100), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 # =========================
@@ -105,8 +106,8 @@ class ProductBarcodeAlias(Base):
     uom: Mapped[str] = mapped_column(String(50), default="EA")
     category: Mapped[str] = mapped_column(String(100), default="")
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 class SkuMaster(Base):
     __tablename__ = "sku_master"
@@ -116,7 +117,7 @@ class SkuMaster(Base):
     pcb: Mapped[int] = mapped_column(Integer, default=1)
     mhu: Mapped[int] = mapped_column(Integer, default=1)
     sku_type: Mapped[str] = mapped_column(String(50), default="ODD")
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class LocationMaster(Base):
@@ -198,8 +199,8 @@ class SkuLocationOverride(Base):
     priority: Mapped[int] = mapped_column(Integer, default=1)
     reason: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (
         UniqueConstraint("sku", "aisle", name="uq_sku_location_override"),
@@ -217,8 +218,8 @@ class PalletHeader(Base):
     po_no: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="DRAFT", index=True)
     created_by: Mapped[str] = mapped_column(String(100), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class PalletDetail(Base):
@@ -233,8 +234,8 @@ class PalletDetail(Base):
     qty_putaway: Mapped[int] = mapped_column(Integer, default=0)
     qty_remain_putaway: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="DRAFT", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (UniqueConstraint("pallet_id", "sku", name="uq_pallet_sku"),)
 
@@ -252,7 +253,7 @@ class InboundQueue(Base):
     qty_putaway: Mapped[int] = mapped_column(Integer, default=0)
     qty_remain_putaway: Mapped[int] = mapped_column(Integer)
     flow_status: Mapped[str] = mapped_column(String(50), default="DRAFT")
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class GrLog(Base):
@@ -264,7 +265,7 @@ class GrLog(Base):
     barcode: Mapped[str] = mapped_column(String(100), index=True)
     sku: Mapped[str] = mapped_column(String(100), index=True)
     qty_gr: Mapped[int] = mapped_column(Integer)
-    gr_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    gr_time: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     user_name: Mapped[str] = mapped_column(String(100), index=True)
 
 
@@ -279,7 +280,7 @@ class PutawayLog(Base):
     barcode: Mapped[str] = mapped_column(String(100), index=True)
     location_id: Mapped[str] = mapped_column(String(100), index=True)
     qty_putaway: Mapped[int] = mapped_column(Integer)
-    putaway_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    putaway_time: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     user_name: Mapped[str] = mapped_column(String(100), index=True)
 
 
@@ -295,7 +296,7 @@ class InventoryBalance(Base):
     barcode: Mapped[str] = mapped_column(String(100), index=True)
     location_id: Mapped[str] = mapped_column(String(100), index=True)
     qty_onhand: Mapped[int] = mapped_column(Integer, default=0)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (UniqueConstraint("sku", "location_id", name="uq_inventory_sku_location"),)
 
@@ -314,10 +315,10 @@ class InventoryCountHeader(Base):
     counted_lines: Mapped[int] = mapped_column(Integer, default=0)
     variance_lines: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     approved_by: Mapped[str] = mapped_column(String(100), default="")
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class InventoryCountDetail(Base):
@@ -336,8 +337,8 @@ class InventoryCountDetail(Base):
     counted_by: Mapped[str] = mapped_column(String(100), default="", index=True)
     counted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (
         UniqueConstraint("count_no", "location_id", "sku", name="uq_count_location_sku"),
@@ -357,7 +358,7 @@ class InventoryAdjustmentLog(Base):
     variance_qty: Mapped[int] = mapped_column(Integer, default=0)
     reason: Mapped[str] = mapped_column(String(255), default="CYCLE_COUNT")
     created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 # =========================
@@ -418,8 +419,8 @@ class PickingHeader(Base):
     printed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     print_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     packed_by: Mapped[str] = mapped_column(String(100), default="")
     packed_time: Mapped[datetime | None] = mapped_column(DateTime)
     carton_qty: Mapped[int] = mapped_column(Integer, default=0)
@@ -457,8 +458,8 @@ class PackHeader(Base):
     staging_confirm_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     staging_remark: Mapped[str] = mapped_column(Text, default="")
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class PackLog(Base):
@@ -478,7 +479,7 @@ class PackLog(Base):
     action: Mapped[str] = mapped_column(String(100), default="CONFIRM_PACK")
     user_name: Mapped[str] = mapped_column(String(100), default="")
     device_name: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class PickingDetail(Base):
@@ -503,7 +504,7 @@ class PickingDetail(Base):
     label_qty: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_PICK", index=True)
     pack_status: Mapped[str] = mapped_column(String(50), default="WAIT", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 # =========================
 # AUDIT / TRACEABILITY
@@ -513,7 +514,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     audit_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    event_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    event_time: Mapped[datetime] = mapped_column(DateTime, default=now_vn, index=True)
 
     operation: Mapped[str] = mapped_column(String(100), index=True, default="")
     reference_no: Mapped[str] = mapped_column(String(120), index=True, default="")
@@ -554,7 +555,7 @@ class OperationLog(Base):
     request_payload: Mapped[str] = mapped_column(Text, default="")
     ip_address: Mapped[str] = mapped_column(String(100), default="")
     device_info: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn, index=True)
 
 
 class ErrorLog(Base):
@@ -569,7 +570,7 @@ class ErrorLog(Base):
     request_payload: Mapped[str] = mapped_column(Text, default="")
     ip_address: Mapped[str] = mapped_column(String(100), default="")
     device_info: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn, index=True)
     
 # =========================
 # SPRINT 2 - GR DATABASE
@@ -582,7 +583,7 @@ class SupplierMaster(Base):
     supplier_code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="ACTIVE")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class PoHeader(Base):
@@ -591,10 +592,10 @@ class PoHeader(Base):
     po_no: Mapped[str] = mapped_column(String(100), primary_key=True)
     supplier_code: Mapped[str] = mapped_column(String(100), index=True, default="")
     supplier_name: Mapped[str] = mapped_column(String(255), default="")
-    po_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    po_date: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_GR", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
 
 class PoDetail(Base):
@@ -609,8 +610,8 @@ class PoDetail(Base):
     qty_received: Mapped[int] = mapped_column(Integer, default=0)
     qty_remaining: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(50), default="WAIT_GR", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
 
     __table_args__ = (
         UniqueConstraint("po_no", "sku", name="uq_po_sku"),
@@ -629,7 +630,7 @@ class MasterDataIssue(Base):
     source_ref_id: Mapped[str] = mapped_column(String(100), default="", index=True)
     status: Mapped[str] = mapped_column(String(50), default="OPEN", index=True)
     created_by: Mapped[str] = mapped_column(String(100), default="", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_vn)
     resolved_by: Mapped[str] = mapped_column(String(100), default="")
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")

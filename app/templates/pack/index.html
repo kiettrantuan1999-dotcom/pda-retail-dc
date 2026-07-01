@@ -1,201 +1,113 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3">
-  <h4 class="fw-bold mb-0">🚚 Đóng hàng</h4>
-  <div class="text-muted">Quét barcode trên phiếu lấy hàng để xác nhận đóng hàng</div>
-</div>
-
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <div>
-        <h5 class="fw-bold mb-0">⏳ Phiếu chờ đóng hàng</h5>
-        <div class="text-muted small">DO đã upload và đã tạo Picking List nhưng chưa có log đóng hàng</div>
-      </div>
-      <span class="badge bg-warning text-dark">{{ tasks|length }} pending</span>
+<section class="wes-op-page">
+  <div class="wes-op-hero hero-pack">
+    <a href="/" class="wes-op-back">←</a>
+    <div class="wes-op-title">
+      <span class="wes-op-kicker">Outbound</span>
+      <h4>Đóng hàng</h4>
+      <p>Quét barcode trên phiếu lấy hàng để xác nhận đóng hàng.</p>
     </div>
-
-    {% if tasks|length == 0 %}
-      <div class="alert alert-success mb-0">✅ Không có phiếu nào đang chờ đóng hàng.</div>
-    {% else %}
-      <div class="row g-2">
-        {% for t in tasks %}
-        <div class="col-12">
-          <div class="border rounded p-2 bg-light">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <div>
-                <div class="fw-bold">{{ t.picking_no }}</div>
-                <div class="small"><b>Cửa hàng:</b> {{ t.store_id }} - {{ t.store_name }}</div>
-                <div class="small text-muted">
-                  <b>{{ t.pack_type_name }}</b>
-                  · DO: {{ t.total_do }}
-                  · SKU: {{ t.sku_line_count }}
-                  · SL: {{ t.total_qty }}
-                </div>
-                <div class="small text-muted">
-                  Chuyến: {{ t.trip_no or '-' }} · Wave: {{ t.wave or '-' }} · Khung giờ: {{ t.khung_gio or '-' }} · Loại giao: {{ t.loai_giao or '-' }}
-                </div>
-              </div>
-
-              <div class="text-end">
-                <span class="badge bg-warning text-dark">🟡 {{ t.pack_status_name }}</span>
-                <button
-                  type="button"
-                  class="btn btn-primary btn-sm mt-2 w-100 load-pending-pack"
-                  data-picking-no="{{ t.picking_no }}"
-                >
-                  Đóng hàng
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    {% endif %}
   </div>
-</div>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-
-    <label class="form-label fw-bold">Mã phiếu lấy hàng</label>
-    <div class="input-group mb-2">
-      <input
-          id="do_no"
-          class="form-control form-control-lg"
-          placeholder="Ví dụ: 30062026-0000002ACV-C hoặc 30062026-0000002ACV-L"
-          autocomplete="off"
-      >
+  <div class="wes-action-form mb-3">
+    <label class="wes-big-label">Mã phiếu lấy hàng</label>
+    <div class="input-group input-group-lg mb-3">
+      <input id="do_no" class="form-control form-control-lg scan-input" placeholder="Quét mã phiếu C/L" autocomplete="off">
       <button id="scanDoBtn" class="btn btn-dark btn-lg" type="button">📷</button>
     </div>
-
-    <button id="loadPackBtn" class="btn btn-primary btn-lg w-100">
-      Tìm phiếu đóng hàng
-    </button>
-
+    <button id="loadPackBtn" class="btn btn-primary btn-lg w-100">Tìm phiếu đóng hàng</button>
+    <div class="form-text mt-2">Không scan DO gốc. Scan barcode trên Picking List đã gom theo cửa hàng.</div>
   </div>
-</div>
 
-<div id="scannerBox" class="scanner-modal d-none">
-  <div class="scanner-header">
-    <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
-    <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
-  </div>
-  <div id="reader" class="scanner-reader"></div>
-</div>
-
-<div id="resultBox" class="alert d-none"></div>
-
-<div id="packBox" class="d-none">
-
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <div><b>Mã phiếu:</b> <span id="infoPickingNo"></span></div>
-      <div><b>DO gốc:</b> <span id="infoDoNo"></span></div>
-      <div><b>Tổng DO:</b> <span id="infoTotalDo"></span></div>
-      <div><b>Mã chuyến:</b> <span id="infoTrip"></span></div>
-      <div><b>Wave:</b> <span id="infoWave"></span></div>
-      <div><b>Khung giờ giao:</b> <span id="infoSlot"></span></div>
-      <div><b>Loại giao:</b> <span id="infoDeliveryType"></span></div>
-      <div><b>Cửa hàng:</b> <span id="infoStore"></span></div>
-      <div><b>Loại phiếu:</b> <span id="infoType"></span></div>
-      <div><b>Số SKU:</b> <span id="infoSkuLine"></span></div>
-      <div><b>Tổng số lượng:</b> <span id="infoTotalQty"></span></div>
-      <div><b>Trạng thái:</b> <span id="infoStatus"></span></div>
+  <div class="wes-section-label">Phiếu chờ đóng hàng · {{ tasks|length }} pending</div>
+  {% if tasks|length == 0 %}
+    <div class="wes-empty-state"><div class="wes-empty-icon">✅</div><strong>Không có phiếu chờ đóng hàng</strong><small>Danh sách sẽ có khi phiếu lấy hàng đã được tạo/in.</small></div>
+  {% else %}
+    <div class="wes-mobile-list mb-3">
+      {% for t in tasks %}
+      <article class="wes-work-card">
+        <div class="wes-work-head">
+          <div>
+            <div class="wes-work-label">Mã phiếu</div>
+            <div class="wes-work-code">{{ t.picking_no }}</div>
+            <div class="text-muted small">{{ t.store_id }} - {{ t.store_name }}</div>
+          </div>
+          <div class="text-end">
+            <span class="badge bg-warning text-dark">{{ t.pack_status_name }}</span>
+            <button type="button" class="btn btn-primary btn-sm mt-2 w-100 load-pending-pack" data-picking-no="{{ t.picking_no }}">Đóng hàng</button>
+          </div>
+        </div>
+        <div class="wes-info-grid mt-3">
+          <div><span>Loại</span><strong>{{ t.pack_type_name }}</strong></div>
+          <div><span>Tổng DO</span><strong>{{ t.total_do }}</strong></div>
+          <div><span>SKU</span><strong>{{ t.sku_line_count }}</strong></div>
+          <div><span>SL</span><strong>{{ t.total_qty }}</strong></div>
+          <div><span>Chuyến</span><strong>{{ t.trip_no or '-' }}</strong></div>
+          <div><span>Wave</span><strong>{{ t.wave or '-' }}</strong></div>
+          <div><span>Khung giờ</span><strong>{{ t.khung_gio or '-' }}</strong></div>
+          <div><span>Loại giao</span><strong>{{ t.loai_giao or '-' }}</strong></div>
+        </div>
+      </article>
+      {% endfor %}
     </div>
-  </div>
+  {% endif %}
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <label class="form-label fw-bold">Người lấy hàng / Picker <span class="text-danger">*</span></label>
-      <input
-        id="picker_name"
-        type="text"
-        class="form-control form-control-lg mb-3"
-        autocomplete="off"
-        placeholder="Nhập tên hoặc mã nhân sự picker"
-      >
-
-      <label class="form-label fw-bold">Số kiện đóng thực tế</label>
-      <input
-        id="actual_package_qty"
-        type="number"
-        class="form-control form-control-lg"
-        min="0"
-        placeholder="Số kiện đã đóng"
-      >
-
-      <button id="confirmPackBtn" class="btn btn-success btn-lg w-100 mt-3">
-        ✅ Xác nhận đóng hàng
-      </button>
+  <div id="scannerBox" class="scanner-modal d-none">
+    <div class="scanner-header">
+      <div class="fw-bold">Đưa mã phiếu lấy hàng vào khung để quét</div>
+      <button type="button" class="btn btn-danger" id="closeScannerBtn">Đóng</button>
     </div>
+    <div id="reader" class="scanner-reader"></div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <h5 class="fw-bold">Danh sách SKU</h5>
-      <div class="table-responsive">
+  <div id="resultBox" class="alert d-none"></div>
+
+  <div id="packBox" class="d-none">
+    <article class="wes-work-card mb-3">
+      <div class="wes-work-head">
+        <div><div class="wes-work-label">Mã phiếu</div><div class="wes-work-code" id="infoPickingNo"></div></div>
+        <div class="text-end"><span id="infoStatus"></span></div>
+      </div>
+      <div class="wes-info-grid mt-3">
+        <div><span>DO gốc</span><strong id="infoDoNo"></strong></div>
+        <div><span>Tổng DO</span><strong id="infoTotalDo"></strong></div>
+        <div><span>Mã chuyến</span><strong id="infoTrip"></strong></div>
+        <div><span>Wave</span><strong id="infoWave"></strong></div>
+        <div><span>Khung giờ</span><strong id="infoSlot"></strong></div>
+        <div><span>Loại giao</span><strong id="infoDeliveryType"></strong></div>
+        <div class="span-2"><span>Cửa hàng</span><strong id="infoStore"></strong></div>
+        <div><span>Loại phiếu</span><strong id="infoType"></strong></div>
+        <div><span>Số SKU</span><strong id="infoSkuLine"></strong></div>
+        <div><span>Tổng số lượng</span><strong id="infoTotalQty"></strong></div>
+      </div>
+    </article>
+
+    <div class="wes-action-form mb-3">
+      <label class="wes-big-label">Người lấy hàng / Picker <span class="text-danger">*</span></label>
+      <input id="picker_name" type="text" class="form-control form-control-lg scan-input mb-3" autocomplete="off" placeholder="Nhập tên hoặc mã nhân sự picker">
+      <label class="wes-big-label">Số kiện đóng thực tế</label>
+      <input id="actual_package_qty" type="number" class="form-control form-control-lg scan-input" min="0" placeholder="Số kiện đã đóng">
+      <button id="confirmPackBtn" class="btn btn-success btn-lg w-100 mt-3">✅ Xác nhận đóng hàng</button>
+    </div>
+
+    <article class="wes-work-card mb-3">
+      <div class="wes-section-card-title">Danh sách SKU</div>
+      <div class="table-responsive mt-2">
         <table class="table table-bordered table-sm align-middle">
-          <thead>
-            <tr>
-                <th style="width: 16%;">SKU</th>
-                <th style="width: 20%;">Barcode</th>
-                <th>Tên sản phẩm</th>
-                <th style="width: 14%;" class="text-end">Số lượng</th>
-            </tr>
-          </thead>
+          <thead><tr><th>SKU</th><th>Barcode</th><th>Tên sản phẩm</th><th class="text-end">Số lượng</th></tr></thead>
           <tbody id="skuTableBody"></tbody>
         </table>
       </div>
-    </div>
+    </article>
   </div>
 
-  <div class="small text-muted mt-2">
-    Quét barcode trên phiếu Picking List để tải thông tin đóng hàng. Không scan mã DO vì phiếu đã gom theo cửa hàng.
-  </div>
+  <a href="/" class="btn btn-secondary w-100">Về trang chủ</a>
 
-</div>
-
-<a href="/" class="btn btn-secondary w-100">⬅ Về trang chủ</a>
-
-<audio id="successBeep" preload="auto">
-  <source src="/static/sound/success.mp3" type="audio/mpeg">
-</audio>
-
-<style>
-  .scanner-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    background: #000;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .scanner-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: rgba(0,0,0,.85);
-  }
-
-  .scanner-reader {
-    flex: 1;
-    width: 100%;
-  }
-
-  .scanner-reader video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
-  }
-</style>
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script src="/static/js/pack.js?v=53.2"></script>
+  <audio id="successBeep" preload="auto"><source src="/static/sound/success.mp3" type="audio/mpeg"></audio>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="/static/js/pack.js?v=53.2"></script>
+</section>
 
 {% endblock %}

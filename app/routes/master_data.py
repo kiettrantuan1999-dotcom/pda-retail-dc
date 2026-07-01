@@ -1,5 +1,6 @@
 from io import BytesIO
 from datetime import datetime
+from app.utils.timezone import now_vn
 from uuid import uuid4
 
 import pandas as pd
@@ -329,7 +330,7 @@ async def import_product_master(file: UploadFile = File(...), db: Session = Depe
                 alias.uom = uom
                 alias.category = category
                 alias.is_primary = is_primary or bool(existing and existing.barcode == barcode)
-                alias.last_update = datetime.utcnow()
+                alias.last_update = now_vn()
             else:
                 db.add(ProductBarcodeAlias(
                     barcode=barcode,
@@ -338,8 +339,8 @@ async def import_product_master(file: UploadFile = File(...), db: Session = Depe
                     uom=uom,
                     category=category,
                     is_primary=is_primary or bool(existing and existing.barcode == barcode),
-                    created_at=datetime.utcnow(),
-                    last_update=datetime.utcnow(),
+                    created_at=now_vn(),
+                    last_update=now_vn(),
                 ))
 
             commit_batch(db, inserted + updated)
@@ -384,12 +385,12 @@ async def import_sku_master(file: UploadFile = File(...), db: Session = Depends(
                 existing.pcb = pcb
                 existing.mhu = mhu
                 existing.sku_type = sku_type
-                existing.last_update = datetime.utcnow()
+                existing.last_update = now_vn()
                 if hasattr(existing, "import_key") and not existing.import_key:
                     existing.import_key = new_import_key("SKU")
                 updated += 1
             else:
-                obj = SkuMaster(sku=sku, pcb=pcb, mhu=mhu, sku_type=sku_type, last_update=datetime.utcnow())
+                obj = SkuMaster(sku=sku, pcb=pcb, mhu=mhu, sku_type=sku_type, last_update=now_vn())
                 if hasattr(obj, "import_key"):
                     obj.import_key = new_import_key("SKU")
                 db.add(obj)
@@ -557,10 +558,10 @@ async def import_sku_location_override(mode: str = "upsert", file: UploadFile = 
                 existing.priority = priority
                 existing.active = active
                 existing.reason = reason
-                existing.last_update = datetime.utcnow()
+                existing.last_update = now_vn()
                 updated += 1
             else:
-                db.add(SkuLocationOverride(sku=sku, barcode=barcode, product_name=product_name, putaway_type=putaway_type, aisle=aisle, priority=priority, active=active, reason=reason, last_update=datetime.utcnow()))
+                db.add(SkuLocationOverride(sku=sku, barcode=barcode, product_name=product_name, putaway_type=putaway_type, aisle=aisle, priority=priority, active=active, reason=reason, last_update=now_vn()))
                 inserted += 1
             commit_batch(db, inserted + updated)
 
@@ -620,7 +621,7 @@ async def import_po_detail(file: UploadFile = File(...), db: Session = Depends(g
 
         inserted = updated = 0
         duplicate = max(len(df) - skipped - len(grouped), 0)
-        now = datetime.utcnow()
+        now = now_vn()
 
         for key, row in grouped.items():
             existing = existing_map.get(key)
