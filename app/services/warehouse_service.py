@@ -225,6 +225,49 @@ def _sync_po_line_received(db: Session, po_no: str, sku: str) -> None:
     po_line.last_update = datetime.utcnow()
 
 
+def _validate_po_receipt_not_over(
+    db: Session,
+    po_no: str,
+    sku: str,
+    qty_total: int,
+    *,
+    exclude_queue_id: int | None = None,
+) -> PoDetail:
+    """Chặn nhận dư theo từng PO + SKU.
+
+    Khi sửa GR, exclude_queue_id dùng để loại dòng hiện tại khỏi tổng đã nhận,
+    sau đó cộng lại số lượng mới để so với qty_order trong PO import.
+    """
+    po_line = _po_line_for_sku(db, po_no, sku)
+    if not po_line:
+        raise ValueError(f"SKU {sku} không có trong PO {po_no}")
+
+    qty_order = int(po_line.qty_order or 0)
+    if qty_order <= 0:
+        raise ValueError(f"SKU {sku} trong PO {po_no} không có số lượng đặt hàng hợp lệ")
+
+    q = db.query(InboundQueue).filter(
+        func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no),
+        func.upper(func.trim(InboundQueue.sku)) == _clean_lookup_text(sku).upper(),
+    )
+    if exclude_queue_id:
+        q = q.filter(InboundQueue.queue_id != int(exclude_queue_id))
+
+    received_other = sum(int(r.qty_gr or 0) for r in q.all())
+    projected_received = received_other + int(qty_total or 0)
+
+    if projected_received > qty_order:
+        over_qty = projected_received - qty_order
+        remain_allowed = max(qty_order - received_other, 0)
+        raise ValueError(
+            f"Không được nhận dư so với PO. SKU {sku}: đặt {qty_order}, "
+            f"đã nhận dòng khác {received_other}, nhập/sửa {int(qty_total or 0)}, "
+            f"vượt {over_qty}. Số lượng còn được nhận: {remain_allowed}."
+        )
+
+    return po_line
+
+
 def _ensure_queue_from_pallet_detail(db: Session, po_no: str, pallet_id: str) -> None:
     """Đảm bảo 1 dòng PalletDetail = 1 dòng InboundQueue theo PA + SKU.
 
@@ -455,6 +498,9 @@ def confirm_gr(
 
     if qty_total <= 0:
         raise ValueError("Tổng số lượng nhập phải lớn hơn 0")
+
+    # Rule vận hành: không cho GR vượt số lượng đặt hàng theo từng PO + SKU.
+    _validate_po_receipt_not_over(db, po_no, sku, qty_total)
 
     now = datetime.utcnow()
 
@@ -824,14 +870,33 @@ def update_gr_qty_after_confirm(
         raise ValueError("Không tìm thấy dòng GR cần sửa")
 
     flow_status = (queue.flow_status or "").upper()
-    if flow_status != "DRAFT":
-        raise ValueError("Dòng này đã hoàn tất PA hoặc đã Put Away, không được sửa GR. Vui lòng nhờ quản lý kiểm tra hoặc dùng Inventory Adjustment.")
+    editable_statuses = {"DRAFT", "WAIT_PUTAWAY", "PARTIAL"}
+    if flow_status == "DONE":
+        raise ValueError("Dòng GR đã DONE, không được sửa số lượng. Nếu tồn thực tế sai, dùng Inventory Adjustment.")
+    if flow_status not in editable_statuses:
+        raise ValueError(f"Trạng thái {queue.flow_status} không hợp lệ để sửa GR")
 
     old_qty = int(queue.qty_gr or 0)
+    qty_putaway = int(queue.qty_putaway or 0)
+
+    if qty_total < qty_putaway:
+        raise ValueError(
+            f"Không được sửa SL GR nhỏ hơn số lượng đã Put Away. "
+            f"SKU {queue.sku}: đã cất {qty_putaway}, SL mới {qty_total}."
+        )
+
+    # Rule vận hành: không cho sửa GR làm tổng nhận vượt số lượng đặt hàng theo PO + SKU.
+    _validate_po_receipt_not_over(
+        db,
+        queue.po_no,
+        queue.sku,
+        qty_total,
+        exclude_queue_id=queue.queue_id,
+    )
+
     now = datetime.utcnow()
 
     queue.qty_gr = qty_total
-    queue.qty_remain_putaway = qty_total
     queue.last_update = now
 
     pallet_detail_q = db.query(PalletDetail).filter(
@@ -843,7 +908,13 @@ def update_gr_qty_after_confirm(
 
     if pallet_detail:
         pallet_detail.qty_gr = qty_total
-        pallet_detail.qty_remain_putaway = qty_total
+        pallet_detail.qty_remain_putaway = max(qty_total - int(pallet_detail.qty_putaway or 0), 0)
+        if pallet_detail.qty_remain_putaway <= 0:
+            pallet_detail.status = "DONE"
+        elif int(pallet_detail.qty_putaway or 0) > 0:
+            pallet_detail.status = "PARTIAL"
+        else:
+            pallet_detail.status = "WAIT_PUTAWAY" if flow_status == "WAIT_PUTAWAY" else "DRAFT"
         pallet_detail.last_update = now
 
     gr_log = (
@@ -860,7 +931,7 @@ def update_gr_qty_after_confirm(
     if gr_log:
         gr_log.qty_gr = qty_total
 
-    _sync_queue_putaway_state(queue, completed_pa=False)
+    _sync_queue_putaway_state(queue, completed_pa=(flow_status in ["WAIT_PUTAWAY", "PARTIAL"]))
     _sync_po_line_received(db, queue.po_no, queue.sku)
 
     db.add(AuditLog(
