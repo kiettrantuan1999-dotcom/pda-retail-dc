@@ -16,6 +16,7 @@ from app.models.tables import (
     LocationMaster,
     PoDetail,
     ProductMaster,
+    ProductBarcodeAlias,
     SkuMaster,
     DoDetail,
 )
@@ -273,7 +274,7 @@ async def import_product_master(file: UploadFile = File(...), db: Session = Depe
         df = read_excel_file(file)
         require_cols(df, ["sku", "barcode"])
         inserted = updated = skipped = duplicate = conflict = 0
-        seen_sku = set()
+        seen_pair = set()
         seen_barcode = set()
 
         for idx, row in df.iterrows():
@@ -282,27 +283,34 @@ async def import_product_master(file: UploadFile = File(...), db: Session = Depe
             if not sku or not barcode:
                 skipped += 1
                 continue
-            if sku in seen_sku or barcode in seen_barcode:
+
+            pair_key = (sku, barcode)
+            if pair_key in seen_pair or barcode in seen_barcode:
                 duplicate += 1
                 continue
-            seen_sku.add(sku)
+            seen_pair.add(pair_key)
             seen_barcode.add(barcode)
 
             product_name = safe_text(row.get("product_name"))
             uom = safe_text(row.get("uom"), "EA") or "EA"
             category = safe_text(row.get("category"))
 
+            # Rule mới: 1 SKU có thể có nhiều barcode.
+            # product_master giữ 1 barcode chính; product_barcode_alias giữ toàn bộ barcode scan được.
             existing = db.query(ProductMaster).filter(ProductMaster.sku == sku).first()
-            barcode_owner = db.query(ProductMaster).filter(ProductMaster.barcode == barcode).first()
-            if barcode_owner and barcode_owner.sku != sku:
+            barcode_owner = db.query(ProductMaster).filter(ProductMaster.barcode == barcode, ProductMaster.sku != sku).first()
+            alias_owner = db.query(ProductBarcodeAlias).filter(ProductBarcodeAlias.barcode == barcode, ProductBarcodeAlias.sku != sku).first()
+            if barcode_owner or alias_owner:
                 conflict += 1
                 continue
 
+            is_primary = False
             if existing:
-                existing.barcode = barcode
-                existing.product_name = product_name
-                existing.uom = uom
-                existing.category = category
+                # Không ghi đè barcode chính nếu SKU đã có; barcode mới sẽ vào alias.
+                if product_name:
+                    existing.product_name = product_name
+                existing.uom = uom or existing.uom
+                existing.category = category or existing.category
                 if hasattr(existing, "import_key") and not existing.import_key:
                     existing.import_key = new_import_key("PROD")
                 updated += 1
@@ -312,6 +320,28 @@ async def import_product_master(file: UploadFile = File(...), db: Session = Depe
                     obj.import_key = new_import_key("PROD")
                 db.add(obj)
                 inserted += 1
+                is_primary = True
+
+            alias = db.query(ProductBarcodeAlias).filter(ProductBarcodeAlias.barcode == barcode).first()
+            if alias:
+                alias.sku = sku
+                alias.product_name = product_name
+                alias.uom = uom
+                alias.category = category
+                alias.is_primary = is_primary or bool(existing and existing.barcode == barcode)
+                alias.last_update = datetime.utcnow()
+            else:
+                db.add(ProductBarcodeAlias(
+                    barcode=barcode,
+                    sku=sku,
+                    product_name=product_name,
+                    uom=uom,
+                    category=category,
+                    is_primary=is_primary or bool(existing and existing.barcode == barcode),
+                    created_at=datetime.utcnow(),
+                    last_update=datetime.utcnow(),
+                ))
+
             commit_batch(db, inserted + updated)
 
         db.commit()

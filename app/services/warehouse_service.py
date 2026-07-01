@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tables import (
     ProductMaster,
+    ProductBarcodeAlias,
     SkuMaster,
     PoDetail,
     InboundQueue,
@@ -55,9 +56,44 @@ def _find_po_detail_rows(db: Session, po_no: str):
     )
 
 def product_by_barcode(db: Session, barcode: str):
-    barcode = barcode.strip()
-    return db.query(ProductMaster).filter(ProductMaster.barcode == barcode).first()
+    """Tìm SKU theo barcode scan từ Product Master.
 
+    Rule mới GR:
+    - Barcode scan KHÔNG đối chiếu trực tiếp với barcode trong PO detail.
+    - Barcode scan chỉ dùng để map về SKU qua product_master/product_barcode_alias.
+    - PO detail chỉ đối chiếu theo PO + SKU.
+    """
+    barcode = _clean_lookup_text(barcode)
+    if not barcode:
+        return None
+
+    product = db.query(ProductMaster).filter(ProductMaster.barcode == barcode).first()
+    if product:
+        return product
+
+    alias = db.query(ProductBarcodeAlias).filter(ProductBarcodeAlias.barcode == barcode).first()
+    if not alias:
+        return None
+
+    product = db.query(ProductMaster).filter(ProductMaster.sku == alias.sku).first()
+    if product:
+        return product
+
+    # Fallback an toàn nếu alias đã có nhưng ProductMaster chính chưa được tạo.
+    return ProductMaster(
+        sku=alias.sku,
+        barcode=alias.barcode,
+        product_name=alias.product_name or "",
+        uom=alias.uom or "EA",
+        category=alias.category or "",
+    )
+
+
+def _product_by_sku(db: Session, sku: str):
+    sku = _clean_lookup_text(sku).upper()
+    if not sku:
+        return None
+    return db.query(ProductMaster).filter(ProductMaster.sku == sku).first()
 
 
 def _unknown_sku_from_barcode(barcode: str) -> str:
@@ -109,15 +145,15 @@ def _product_payload_from_master(db: Session, barcode: str):
     }
 
 
-def _po_line_for_barcode(db: Session, po_no: str, barcode: str):
+def _po_line_for_sku(db: Session, po_no: str, sku: str):
     po_no = _clean_lookup_text(po_no)
-    barcode = _clean_lookup_text(barcode)
-    if not po_no or not barcode:
+    sku = _clean_lookup_text(sku).upper()
+    if not po_no or not sku:
         return None
 
     row = (
         db.query(PoDetail)
-        .filter(PoDetail.po_no == po_no, PoDetail.barcode == barcode)
+        .filter(PoDetail.po_no == po_no, PoDetail.sku == sku)
         .first()
     )
     if row:
@@ -127,21 +163,36 @@ def _po_line_for_barcode(db: Session, po_no: str, barcode: str):
         db.query(PoDetail)
         .filter(
             func.upper(func.trim(PoDetail.po_no)) == _po_filter_value(po_no),
-            func.trim(PoDetail.barcode) == barcode,
+            func.upper(func.trim(PoDetail.sku)) == sku,
         )
         .first()
     )
 
-def _calc_po_line_received(db: Session, po_no: str, sku: str, barcode: str) -> int:
+
+def _po_line_for_scan_barcode(db: Session, po_no: str, barcode: str):
+    product = product_by_barcode(db, barcode)
+    if not product:
+        raise ValueError(
+            f"Barcode {barcode} chưa có trong Product Master. Vui lòng import/bổ sung barcode trước khi GR."
+        )
+
+    po_line = _po_line_for_sku(db, po_no, product.sku)
+    if not po_line:
+        raise ValueError(
+            f"SKU {product.sku} từ barcode {barcode} không có trong PO {po_no}. Vui lòng kiểm tra file PO detail hoặc scan lại."
+        )
+    return po_line, product
+
+
+def _calc_po_line_received(db: Session, po_no: str, sku: str, barcode: str = "") -> int:
     po_no = _clean_lookup_text(po_no)
-    sku = _clean_lookup_text(sku)
+    sku = _clean_lookup_text(sku).upper()
     barcode = _clean_lookup_text(barcode)
     rows = (
         db.query(InboundQueue)
         .filter(
             func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no),
-            InboundQueue.sku == sku,
-            InboundQueue.barcode == barcode,
+            func.upper(func.trim(InboundQueue.sku)) == sku,
         )
         .all()
     )
@@ -166,18 +217,17 @@ def get_product_scan_info(db: Session, barcode: str, po_no: str = ""):
 
     product_info = _product_payload_from_master(db, barcode)
 
-    # Nếu đang scan trong GR theo PO, barcode bắt buộc phải nằm trong PO detail đã upload.
-    # Đây là kiểm soát chứng từ trung tâm đặt hàng, tránh nhập nhầm SKU ngoài PO.
+    # Rule mới: barcode scan -> product_master/product_barcode_alias -> SKU; PO detail chỉ đối soát SKU.
     if po_no:
-        po_line = _po_line_for_barcode(db, po_no, barcode)
-        if not po_line:
-            raise ValueError(f"Barcode {barcode} không có trong PO {po_no}. Vui lòng kiểm tra file PO detail hoặc scan lại.")
-
+        po_line, product = _po_line_for_scan_barcode(db, po_no, barcode)
+        product_info = _product_payload_from_master(db, barcode)
         product_info["sku"] = po_line.sku
-        product_info["barcode"] = po_line.barcode
-        product_info["product_name"] = po_line.product_name or product_info.get("product_name") or ""
+        product_info["scan_barcode"] = barcode
+        product_info["barcode"] = product.barcode or barcode
+        product_info["po_barcode"] = po_line.barcode
+        product_info["product_name"] = po_line.product_name or product_info.get("product_name") or product.product_name or ""
         product_info["qty_order"] = int(po_line.qty_order or 0)
-        product_info["qty_received"] = _calc_po_line_received(db, po_no, po_line.sku, po_line.barcode)
+        product_info["qty_received"] = _calc_po_line_received(db, po_no, po_line.sku)
         product_info["receipt_status"] = _receipt_status(product_info["qty_received"], product_info["qty_order"])
 
     return product_info
@@ -197,9 +247,10 @@ def get_gr_po_detail_summary(db: Session, po_no: str):
     total_order = total_received = 0
 
     for r in po_rows:
-        product_info = _product_payload_from_master(db, r.barcode)
+        product = _product_by_sku(db, r.sku)
+        product_info = _product_payload_from_master(db, product.barcode) if product else _product_payload_from_master(db, r.barcode)
         pcb = int(product_info.get("pcb") or 1)
-        qty_total = _calc_po_line_received(db, po_no, r.sku, r.barcode)
+        qty_total = _calc_po_line_received(db, po_no, r.sku)
         carton_qty = qty_total // pcb if pcb > 0 else 0
         loose_qty = qty_total % pcb if pcb > 0 else qty_total
         qty_order = int(r.qty_order or 0)
@@ -278,13 +329,11 @@ def confirm_gr(
     if qty_promo < 0:
         raise ValueError("Số lượng khuyến mãi không được âm")
 
-    po_line = _po_line_for_barcode(db, po_no, barcode)
-    if not po_line:
-        raise ValueError(f"Barcode {barcode} không có trong PO {po_no}. Vui lòng kiểm tra file PO detail hoặc scan lại.")
+    po_line, product = _po_line_for_scan_barcode(db, po_no, barcode)
 
     product_info = _product_payload_from_master(db, barcode)
     sku = po_line.sku
-    product_name = po_line.product_name or product_info.get("product_name") or ""
+    product_name = po_line.product_name or product_info.get("product_name") or product.product_name or ""
     is_unknown_master = bool(product_info.get("is_unknown_master"))
     master_pcb = int(product_info.get("pcb") or 1)
     pcb = int(pcb or master_pcb or 1)
@@ -344,10 +393,9 @@ def confirm_gr(
     queue = (
         db.query(InboundQueue)
         .filter(
-            InboundQueue.po_no == po_no,
+            func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no),
             InboundQueue.pallet_id == pallet_id,
-            InboundQueue.sku == sku,
-            InboundQueue.barcode == barcode,
+            func.upper(func.trim(InboundQueue.sku)) == sku.upper(),
         )
         .first()
     )
@@ -381,7 +429,6 @@ def confirm_gr(
         .filter(
             PalletDetail.pallet_id == pallet_id,
             PalletDetail.sku == sku,
-            PalletDetail.barcode == barcode,
         )
         .first()
     )
@@ -416,7 +463,7 @@ def confirm_gr(
     )
 
     # Đồng bộ số lượng đã nhận về PO detail để màn hình PO đối chiếu nhanh và import sau không mất trạng thái.
-    po_line.qty_received = _calc_po_line_received(db, po_no, sku, barcode) + qty_total
+    po_line.qty_received = _calc_po_line_received(db, po_no, sku) + qty_total
     po_line.qty_remaining = max(int(po_line.qty_order or 0) - int(po_line.qty_received or 0), 0)
     po_line.status = _receipt_status(int(po_line.qty_received or 0), int(po_line.qty_order or 0))
     po_line.last_update = now
@@ -706,10 +753,10 @@ def update_gr_qty_after_confirm(
     if gr_log:
         gr_log.qty_gr = qty_total
 
-    po_line = _po_line_for_barcode(db, queue.po_no, queue.barcode)
+    po_line = _po_line_for_sku(db, queue.po_no, queue.sku)
     if po_line:
         # Tính lại từ inbound_queue, gồm dòng hiện tại đã set qty_total nhưng chưa commit.
-        po_line.qty_received = _calc_po_line_received(db, queue.po_no, queue.sku, queue.barcode)
+        po_line.qty_received = _calc_po_line_received(db, queue.po_no, queue.sku)
         po_line.qty_remaining = max(int(po_line.qty_order or 0) - int(po_line.qty_received or 0), 0)
         po_line.status = _receipt_status(int(po_line.qty_received or 0), int(po_line.qty_order or 0))
         po_line.last_update = now

@@ -90,6 +90,24 @@ class ProductMaster(Base):
     uom: Mapped[str] = mapped_column(String(50), default="EA")
     category: Mapped[str] = mapped_column(String(100), default="")
 
+
+class ProductBarcodeAlias(Base):
+    """Danh mục barcode phụ/alias cho cùng một SKU.
+
+    product_master vẫn giữ 1 dòng chính theo SKU để không phá cấu trúc DB cũ.
+    Bảng này cho phép 1 SKU có nhiều barcode scan thực tế.
+    """
+    __tablename__ = "product_barcode_alias"
+
+    barcode: Mapped[str] = mapped_column(String(100), primary_key=True)
+    sku: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    product_name: Mapped[str] = mapped_column(String(255), default="")
+    uom: Mapped[str] = mapped_column(String(50), default="EA")
+    category: Mapped[str] = mapped_column(String(100), default="")
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class SkuMaster(Base):
     __tablename__ = "sku_master"
 
