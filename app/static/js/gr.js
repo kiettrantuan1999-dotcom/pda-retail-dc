@@ -25,6 +25,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const historySubtitle = document.getElementById("historySubtitle");
   const historyBody = document.getElementById("grHistoryBody");
   const reloadHistoryBtn = document.getElementById("reloadHistoryBtn");
+  const openHistorySheetBtn = document.getElementById("openHistorySheetBtn");
+  const openPoDetailSheetBtn = document.getElementById("openPoDetailSheetBtn");
+  const historySheet = document.getElementById("historySheet");
+  const poDetailSheet = document.getElementById("poDetailSheet");
   const completePaBtn = document.getElementById("completePaBtn");
   const poDetailSubtitle = document.getElementById("poDetailSubtitle");
   const poDetailBody = document.getElementById("poDetailBody");
@@ -44,6 +48,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const editGrBox = document.getElementById("editGrBox");
   const editGrForm = document.getElementById("editGrForm");
   const cancelEditGrBtn = document.getElementById("cancelEditGrBtn");
+  const cancelEditGrTopBtn = document.getElementById("cancelEditGrTopBtn");
   const editPalletIdInput = document.getElementById("edit_pallet_id");
   const editQueueIdInput = document.getElementById("edit_queue_id");
   const editSkuInput = document.getElementById("edit_sku");
@@ -75,6 +80,33 @@ document.addEventListener("DOMContentLoaded", function () {
   let pendingCompletePa = null;
   let suppressAutoScanUntil = 0;
 
+  function openSheet(sheet) {
+    if (!sheet) return;
+    sheet.classList.remove("d-none");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeSheet(sheet) {
+    if (!sheet) return;
+    sheet.classList.add("d-none");
+    if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
+      document.body.style.overflow = "";
+    }
+  }
+
+  document.querySelectorAll(".gr-sheet-close").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      closeSheet(document.getElementById(btn.getAttribute("data-sheet-close")));
+    });
+  });
+
+  [historySheet, poDetailSheet, editGrBox].forEach(function (sheet) {
+    if (!sheet) return;
+    sheet.addEventListener("click", function (e) {
+      if (e.target === sheet) closeSheet(sheet);
+    });
+  });
+
   poInput.focus();
   recalcQtyPreview();
 
@@ -104,10 +136,15 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  function closeEditGrSheet() {
+    closeSheet(editGrBox);
+  }
+
   if (cancelEditGrBtn) {
-    cancelEditGrBtn.addEventListener("click", function () {
-      editGrBox.classList.add("d-none");
-    });
+    cancelEditGrBtn.addEventListener("click", closeEditGrSheet);
+  }
+  if (cancelEditGrTopBtn) {
+    cancelEditGrTopBtn.addEventListener("click", closeEditGrSheet);
   }
 
   function moveNextOnEnter(current, next, beforeMove) {
@@ -152,8 +189,20 @@ document.addEventListener("DOMContentLoaded", function () {
   poInput.addEventListener("blur", function () { loadHistory(); loadPoDetail(); });
   barcodeInput.addEventListener("change", loadProductInfo);
   barcodeInput.addEventListener("blur", loadProductInfo);
-  reloadHistoryBtn.addEventListener("click", loadHistory);
+  if (reloadHistoryBtn) reloadHistoryBtn.addEventListener("click", loadHistory);
   if (reloadPoDetailBtn) reloadPoDetailBtn.addEventListener("click", loadPoDetail);
+  if (openHistorySheetBtn) {
+    openHistorySheetBtn.addEventListener("click", async function () {
+      await loadHistory();
+      openSheet(historySheet);
+    });
+  }
+  if (openPoDetailSheetBtn) {
+    openPoDetailSheetBtn.addEventListener("click", async function () {
+      await loadPoDetail();
+      openSheet(poDetailSheet);
+    });
+  }
   if (completePaTopBtn && completePaBtn) {
     completePaTopBtn.addEventListener("click", function () { completePaBtn.click(); });
   }
@@ -302,12 +351,13 @@ document.addEventListener("DOMContentLoaded", function () {
     editQtyPromoInput.value = "0";
     recalcEditQtyPreview();
 
-    editGrBox.classList.remove("d-none");
-    editGrBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    openSheet(editGrBox);
     setTimeout(function () {
-      editCartonQtyInput.focus();
-      editCartonQtyInput.select();
-    }, 120);
+      if (editCartonQtyInput) {
+        editCartonQtyInput.focus();
+        editCartonQtyInput.select();
+      }
+    }, 80);
   }
 
   async function enrichHistoryRow(row) {
@@ -363,12 +413,16 @@ function escapeHtml(value) {
     if (completeModalTotalSku) completeModalTotalSku.innerText = formatNumber(summary.totalSku);
     if (completeModalTotalQty) completeModalTotalQty.innerText = formatNumber(summary.totalQty);
     completePaModal.classList.remove("d-none");
+    document.body.style.overflow = "hidden";
     return true;
   }
 
   function closeCompleteModal() {
     pendingCompletePa = null;
     if (completePaModal) completePaModal.classList.add("d-none");
+    if (!document.querySelector(".gr-sheet-backdrop:not(.d-none), .gr-complete-modal-backdrop:not(.d-none), .scanner-modal:not(.d-none)")) {
+      document.body.style.overflow = "";
+    }
   }
 
   function renderHistory(rows) {
@@ -928,7 +982,7 @@ function restoreManualInput(targetInput) {
           <div><b>Còn Put Away:</b> ${data.data.qty_remain_putaway}</div>
         `;
 
-        editGrBox.classList.add("d-none");
+        closeSheet(editGrBox);
         await loadHistory();
         await loadPoDetail();
       } catch (err) {
