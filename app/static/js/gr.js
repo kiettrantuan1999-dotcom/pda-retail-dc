@@ -887,6 +887,7 @@ function restoreManualInput(targetInput) {
       recalcQtyPreview();
 
       setTimeout(function () {
+        // Sau khi hoàn tất PA, giữ nguyên PO và đưa focus về PA để scan PA tiếp theo của cùng PO.
         palletInput.focus();
         if (palletInput.select) palletInput.select();
       }, 100);
@@ -1049,7 +1050,7 @@ function restoreManualInput(targetInput) {
           <div><b>Tổng SKU trên PA:</b> ${data.data.pallet_total_sku || 1}</div>
           <div><b>Tổng SL trên PA:</b> ${data.data.pallet_total_qty || data.data.qty_total}</div>
           <div><b>Status:</b> ${data.data.flow_status}</div>
-          <div class="text-muted mt-1">Scan SKU tiếp theo trên cùng PA hoặc bấm <b>Hoàn tất PA</b> nếu đã đủ SKU.</div>
+          <div class="text-muted mt-1">Scan SKU tiếp theo trên cùng PA. Nếu muốn qua PA mới, bấm <b>Hoàn tất PA</b> rồi scan mã PA mới.</div>
         `;
 
         // Giữ nguyên PA để nhân sự có thể scan nhiều SKU vào cùng pallet.

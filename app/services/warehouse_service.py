@@ -517,7 +517,11 @@ def confirm_gr(
             note="GR barcode chưa có trong product_master; hệ thống tạo SKU tạm để không chặn vận hành.",
         ))
 
-    # 1 PA chỉ thuộc 1 PO. Nếu scan PA đã thuộc PO khác thì chặn để tránh lẫn chứng từ.
+    # Rule đúng:
+    # - 1 PO có thể có N PA. Không được tìm/chặn theo po_no.
+    # - 1 PA chỉ thuộc 1 PO. Nếu cùng mã PA đã thuộc PO khác thì chặn để tránh lẫn chứng từ.
+    # Lưu ý: nếu database cũ từng có unique index trên pallet_header.po_no,
+    # hãy chạy scripts/repair_sprint56_gr_multi_pa.py để bỏ ràng buộc sai.
     pallet_header = db.query(PalletHeader).filter(PalletHeader.pallet_id == pallet_id).first()
     if pallet_header and pallet_header.po_no != po_no:
         raise ValueError(f"PA {pallet_id} đã thuộc PO {pallet_header.po_no}, không thể GR vào PO {po_no}")
