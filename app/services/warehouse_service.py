@@ -534,9 +534,10 @@ def confirm_gr(
         db.add(pallet_header)
     else:
         header_status = (pallet_header.status or "").upper()
-        if header_status in ["WAIT_PUTAWAY", "PARTIAL", "DONE"]:
-            raise ValueError("PA đã hoàn tất hoặc đã Put Away, không được thêm SKU. Vui lòng tạo PA mới hoặc nhờ quản lý kiểm tra.")
-        pallet_header.status = "DRAFT"
+        # Rule vận hành: 1 PA được chứa N SKU và vẫn được bổ sung/sửa khi DRAFT, WAIT_PUTAWAY, PARTIAL.
+        # Chỉ khóa khi PA đã DONE vì lúc đó hàng đã cất xong, nếu sai phải đi Inventory Adjustment.
+        if header_status == "DONE":
+            raise ValueError("PA đã DONE, không được thêm SKU. Nếu tồn thực tế sai, dùng Inventory Adjustment.")
         pallet_header.last_update = now
 
     # Dòng task theo SKU trong cùng PA. Cho phép 1 PA có nhiều SKU.
@@ -550,16 +551,18 @@ def confirm_gr(
         .first()
     )
 
-    if queue and (queue.flow_status or "").upper() not in ["DRAFT"]:
-        raise ValueError("Dòng SKU này không còn ở trạng thái DRAFT, không được GR cộng thêm. Vui lòng tạo PA mới hoặc nhờ quản lý kiểm tra.")
+    header_status = (pallet_header.status or "DRAFT").upper()
+    completed_pa = header_status in ["WAIT_PUTAWAY", "PARTIAL"]
+
+    if queue and (queue.flow_status or "").upper() == "DONE":
+        raise ValueError("Dòng SKU này đã DONE, không được GR cộng thêm. Nếu tồn thực tế sai, dùng Inventory Adjustment.")
 
     old_qty = int(queue.qty_gr or 0) if queue else 0
 
     if queue:
         queue.qty_gr = old_qty + qty_total
-        # Remain Put Away luôn tính theo GR thực tế - đã Put Away, không cộng dồn mù.
-        _sync_queue_putaway_state(queue, completed_pa=False)
-        queue.flow_status = "DRAFT"
+        # Nếu PA đã hoàn tất, dòng cộng thêm vẫn phải nằm trong luồng Put Away, không quay về DRAFT.
+        _sync_queue_putaway_state(queue, completed_pa=completed_pa)
         queue.last_update = now
     else:
         queue = InboundQueue(
@@ -570,7 +573,7 @@ def confirm_gr(
             qty_gr=qty_total,
             qty_putaway=0,
             qty_remain_putaway=qty_total,
-            flow_status="DRAFT",
+            flow_status="WAIT_PUTAWAY" if completed_pa else "DRAFT",
             last_update=now,
         )
         db.add(queue)
@@ -586,8 +589,8 @@ def confirm_gr(
 
     if pallet_detail:
         pallet_detail.qty_gr = int(pallet_detail.qty_gr or 0) + qty_total
-        pallet_detail.qty_remain_putaway = int(pallet_detail.qty_remain_putaway or 0) + qty_total
-        pallet_detail.status = "DRAFT"
+        pallet_detail.qty_remain_putaway = max(int(pallet_detail.qty_gr or 0) - int(pallet_detail.qty_putaway or 0), 0)
+        pallet_detail.status = queue.flow_status
         pallet_detail.last_update = now
     else:
         pallet_detail = PalletDetail(
@@ -598,7 +601,7 @@ def confirm_gr(
             qty_gr=qty_total,
             qty_putaway=0,
             qty_remain_putaway=qty_total,
-            status="DRAFT",
+            status=queue.flow_status,
             created_at=now,
             last_update=now,
         )
