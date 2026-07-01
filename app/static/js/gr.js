@@ -423,6 +423,41 @@ function escapeHtml(value) {
     };
   }
 
+  function cacheGrLine(data) {
+    if (!data || !data.queue_id) return;
+
+    const row = {
+      queue_id: data.queue_id,
+      po_no: data.po_no,
+      pallet_id: data.pallet_id,
+      sku: data.sku,
+      barcode: data.barcode,
+      product_name: data.product_name || "",
+      pcb: Number(data.pcb || 1),
+      qty_total: Number(data.line_total_after || data.qty_total || data.qty_gr || 0),
+      qty_gr: Number(data.line_total_after || data.qty_total || data.qty_gr || 0),
+      flow_status: data.flow_status || "DRAFT"
+    };
+
+    grHistoryRows[String(data.queue_id)] = row;
+    grHistoryRows[data.pallet_id] = row;
+  }
+
+  function updatePoSummaryAfterGr(data) {
+    if (!data || !latestPoSummary || String(latestPoSummary.po_no || "") !== String(data.po_no || "")) return;
+
+    const lineQty = Number(data.qty_total || data.qty_gr || 0);
+    latestPoSummary.total_received = Number(latestPoSummary.total_received || 0) + lineQty;
+
+    if (poTotalReceivedCard) poTotalReceivedCard.innerText = formatNumber(latestPoSummary.total_received);
+
+    const poStatusText = latestPoSummary.po_status ? ` · PO: ${latestPoSummary.po_status}` : "";
+    if (poDetailSubtitle) {
+      poDetailSubtitle.innerText = `PO: ${latestPoSummary.po_no} · SKU: ${latestPoSummary.total_sku} · Đặt: ${latestPoSummary.total_order} · Đã nhập: ${latestPoSummary.total_received} · ${latestPoSummary.status}${poStatusText}`;
+    }
+  }
+
+
   function openCompleteModal(poNo, palletId) {
     if (!completePaModal) return false;
 
@@ -977,6 +1012,9 @@ function restoreManualInput(targetInput) {
         return { ok: false, error: data.error || "Không tự lưu được SKU vào PA trước khi Confirm PA" };
       }
 
+      cacheGrLine(data.data);
+      updatePoSummaryAfterGr(data.data);
+
       // Lưu thành công: clear dòng đang nhập để tránh bấm Confirm PA nhiều lần bị cộng trùng số lượng.
       barcodeInput.value = "";
       cartonQtyInput.value = "0";
@@ -1016,18 +1054,11 @@ function restoreManualInput(targetInput) {
         return showError(data.error || "Không hoàn tất được PA");
       }
 
-      resultBox.classList.remove("d-none");
-      resultBox.classList.add("gr-result-success");
-      resultTitle.innerText = "✅ Đã Confirm PA";
-      resultTitle.className = "fw-bold mb-2 text-success";
-      resultText.innerHTML = `
-        <div><b>PO:</b> ${escapeHtml(data.data.po_no)}</div>
-        <div><b>PA:</b> ${escapeHtml(data.data.pallet_id)}</div>
-        <div><b>Tổng số lượng SKU GR:</b> ${formatNumber(data.data.total_sku)}</div>
-        <div><b>Tổng số lượng GR:</b> ${formatNumber(data.data.total_qty)}</div>
-        <div><b>Status:</b> ${escapeHtml(data.data.flow_status)}</div>
-        <div class="text-muted mt-1">PA đã chuyển sang danh sách Put Away. Scan PA mới để tiếp tục nhập cùng PO.</div>
-      `;
+      // Popup Confirm PA đã thể hiện trạng thái. Không render thêm khối kết quả dài dưới form.
+      resultBox.classList.add("d-none");
+      resultBox.classList.remove("gr-result-success");
+      resultTitle.innerText = "";
+      resultText.innerHTML = "";
 
       await loadHistory();
       await loadPoDetail();
@@ -1204,18 +1235,11 @@ function restoreManualInput(targetInput) {
 
       if (!data.ok) return showError(data.error || "Không xác nhận được PO");
 
-      resultBox.classList.remove("d-none");
-      resultBox.classList.add("gr-result-success");
-      resultTitle.innerText = "✅ Đã xác nhận PO";
-      resultTitle.className = "fw-bold mb-2 text-success";
-      resultText.innerHTML = `
-        <div><b>PO:</b> ${escapeHtml(data.data.po_no)}</div>
-        <div><b>Trạng thái:</b> ${escapeHtml(data.data.po_status)}</div>
-        <div><b>Tổng PA:</b> ${formatNumber(data.data.total_pa)}</div>
-        <div><b>Tổng SKU:</b> ${formatNumber(data.data.total_sku)}</div>
-        <div><b>Tổng SL GR:</b> ${formatNumber(data.data.total_qty)}</div>
-        <div class="text-muted mt-1">PO đã đóng. Hệ thống đã khóa GR thêm và khóa sửa SL.</div>
-      `;
+      // Popup Confirm PO đã thể hiện trạng thái. Không render thêm khối kết quả dài dưới form.
+      resultBox.classList.add("d-none");
+      resultBox.classList.remove("gr-result-success");
+      resultTitle.innerText = "";
+      resultText.innerHTML = "";
 
       await loadHistory();
       await loadPoDetail();
@@ -1279,30 +1303,17 @@ function restoreManualInput(targetInput) {
       });
 
       const data = await res.json();
-      resultBox.classList.remove("d-none");
 
       if (data.ok) {
-        resultTitle.innerText = "✅ GR thành công";
-        resultTitle.className = "fw-bold mb-2 text-success";
+        // Đã có popup assign SKU, không render thêm khối kết quả dài dưới form.
+        // Việc này giảm scroll và giảm DOM repaint trên điện thoại.
+        resultBox.classList.add("d-none");
+        resultBox.classList.remove("gr-result-success");
+        resultTitle.innerText = "";
+        resultText.innerHTML = "";
 
-        resultText.innerHTML = `
-          <div><b>PO:</b> ${data.data.po_no}</div>
-          <div><b>PA:</b> ${data.data.pallet_id}</div>
-          <div><b>SKU:</b> ${data.data.sku}</div>
-          <div><b>Tên hàng:</b> ${data.data.product_name || ""}</div>
-          <div><b>Barcode:</b> ${data.data.barcode}</div>
-          <div><b>PCB:</b> ${data.data.pcb}</div>
-          <div><b>Thùng chẵn:</b> ${data.data.carton_qty}</div>
-          <div><b>Kiện lẻ:</b> ${data.data.loose_qty}</div>
-          <div><b>SL nhập:</b> ${data.data.qty_gr}</div>
-          <div><b>SL khuyến mãi:</b> ${data.data.qty_promo}</div>
-          <div><b>Tổng nhập:</b> ${data.data.qty_total}</div>
-          <div><b>Còn Put Away dòng SKU:</b> ${data.data.qty_remain_putaway}</div>
-          <div><b>Tổng SKU trên PA:</b> ${data.data.pallet_total_sku || 1}</div>
-          <div><b>Tổng SL trên PA:</b> ${data.data.pallet_total_qty || data.data.qty_total}</div>
-          <div><b>Status:</b> ${data.data.flow_status}</div>
-          <div class="text-muted mt-1">Đã tự lưu SKU vào PA. Scan SKU tiếp theo trên cùng PA, hoặc bấm <b>Confirm PA</b> để qua PA mới.</div>
-        `;
+        cacheGrLine(data.data);
+        updatePoSummaryAfterGr(data.data);
 
         // Giữ nguyên PA để nhân sự có thể scan nhiều SKU vào cùng pallet.
         barcodeInput.value = "";
@@ -1311,10 +1322,8 @@ function restoreManualInput(targetInput) {
         qtyPromoInput.value = "0";
         clearProductInfo();
 
-        await loadHistory();
-        await loadPoDetail();
-
-        // Hiện popup xác nhận SKU đã được assign vào PA để nhân sự nhìn rõ trạng thái lưu.
+        // Không reload bảng lịch sử/PO detail sau mỗi SKU vì rất nặng trên PDA.
+        // Khi cần xem danh sách, user bấm nút refresh hoặc mở khu vực danh sách.
         openAssignSkuModal(data.data);
 
         setTimeout(function () {
@@ -1324,6 +1333,7 @@ function restoreManualInput(targetInput) {
           }
         }, 100);
       } else {
+        resultBox.classList.remove("d-none");
         resultTitle.innerText = "❌ GR lỗi";
         resultTitle.className = "fw-bold mb-2 text-danger";
         resultText.innerText = data.error || "Có lỗi xảy ra";
