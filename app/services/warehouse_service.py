@@ -408,6 +408,18 @@ def get_product_scan_info(db: Session, barcode: str, po_no: str = ""):
 
 
 def get_gr_po_detail_summary(db: Session, po_no: str):
+    """Tải đối chiếu PO detail theo cách tối ưu cho PDA.
+
+    Bản cũ query theo từng SKU:
+    - product_master / sku_master từng dòng
+    - inbound_queue từng dòng
+    Khi PO có nhiều SKU, màn GR bị chậm rõ trên điện thoại.
+
+    Bản này gom dữ liệu bằng 3 query chính:
+    - PO detail
+    - tổng GR theo SKU
+    - SKU master/Product master theo danh sách SKU
+    """
     po_no = (po_no or "").strip()
     if not po_no:
         raise ValueError("Vui lòng scan/nhập PO")
@@ -418,19 +430,47 @@ def get_gr_po_detail_summary(db: Session, po_no: str):
     if not po_rows:
         raise ValueError(f"PO {po_no} chưa có trong PO detail. Vui lòng upload file PO detail trước khi GR.")
 
+    skus = [str(r.sku or "").strip().upper() for r in po_rows if r.sku]
+    sku_set = sorted(set(skus))
+
+    received_map = {
+        str(row.sku or "").strip().upper(): int(row.qty_received or 0)
+        for row in (
+            db.query(
+                InboundQueue.sku.label("sku"),
+                func.coalesce(func.sum(InboundQueue.qty_gr), 0).label("qty_received"),
+            )
+            .filter(func.upper(func.trim(InboundQueue.po_no)) == _po_filter_value(po_no))
+            .group_by(InboundQueue.sku)
+            .all()
+        )
+    }
+
+    product_map = {
+        str(p.sku or "").strip().upper(): p
+        for p in db.query(ProductMaster).filter(ProductMaster.sku.in_(sku_set)).all()
+    } if sku_set else {}
+
+    sku_master_map = {
+        str(s.sku or "").strip().upper(): s
+        for s in db.query(SkuMaster).filter(SkuMaster.sku.in_(sku_set)).all()
+    } if sku_set else {}
+
     rows = []
     total_order = total_received = 0
 
     for r in po_rows:
-        product = _product_by_sku(db, r.sku)
-        product_info = _product_payload_from_master(db, product.barcode) if product else _product_payload_from_master(db, r.barcode)
-        pcb = int(product_info.get("pcb") or 1)
-        qty_total = _calc_po_line_received(db, po_no, r.sku)
+        sku_key = str(r.sku or "").strip().upper()
+        product = product_map.get(sku_key)
+        sku_master = sku_master_map.get(sku_key)
+
+        pcb = int((sku_master.pcb if sku_master and sku_master.pcb else 1) or 1)
+        qty_total = int(received_map.get(sku_key, 0))
         carton_qty = qty_total // pcb if pcb > 0 else 0
         loose_qty = qty_total % pcb if pcb > 0 else qty_total
         qty_order = int(r.qty_order or 0)
         status = _receipt_status(qty_total, qty_order)
-        note = ""
+
         if status == "DƯ":
             note = f"Dư {qty_total - qty_order}"
         elif status == "THIẾU":
@@ -441,7 +481,7 @@ def get_gr_po_detail_summary(db: Session, po_no: str):
         rows.append({
             "sku": r.sku,
             "barcode": r.barcode,
-            "product_name": r.product_name or product_info.get("product_name") or "",
+            "product_name": r.product_name or (product.product_name if product else "") or "",
             "qty_order": qty_order,
             "pcb": pcb,
             "carton_qty": carton_qty,
@@ -934,6 +974,82 @@ def get_gr_history_by_po(db: Session, po_no: str, limit: int = 50):
         .limit(limit)
         .all()
     )
+
+
+
+def get_gr_history_payload_fast(db: Session, po_no: str, limit: int = 50):
+    """Trả history GR đã enrich master data bằng bulk query, tránh N+1 query."""
+    rows = get_gr_history_by_po(db, po_no, limit=limit)
+    if not rows:
+        return []
+
+    skus = sorted({str(r.sku or "").strip().upper() for r in rows if r.sku})
+    barcodes = sorted({str(r.barcode or "").strip() for r in rows if r.barcode})
+
+    product_by_sku = {
+        str(p.sku or "").strip().upper(): p
+        for p in db.query(ProductMaster).filter(ProductMaster.sku.in_(skus)).all()
+    } if skus else {}
+
+    product_by_barcode = {
+        str(p.barcode or "").strip(): p
+        for p in db.query(ProductMaster).filter(ProductMaster.barcode.in_(barcodes)).all()
+    } if barcodes else {}
+
+    alias_by_barcode = {
+        str(a.barcode or "").strip(): a
+        for a in db.query(ProductBarcodeAlias).filter(ProductBarcodeAlias.barcode.in_(barcodes)).all()
+    } if barcodes else {}
+
+    sku_master_by_sku = {
+        str(s.sku or "").strip().upper(): s
+        for s in db.query(SkuMaster).filter(SkuMaster.sku.in_(skus)).all()
+    } if skus else {}
+
+    result_rows = []
+    for r in rows:
+        sku_key = str(r.sku or "").strip().upper()
+        barcode_key = str(r.barcode or "").strip()
+
+        product = product_by_sku.get(sku_key) or product_by_barcode.get(barcode_key)
+        alias = alias_by_barcode.get(barcode_key)
+        sku_master = sku_master_by_sku.get(sku_key)
+
+        pcb = int((sku_master.pcb if sku_master and sku_master.pcb else 1) or 1)
+        product_name = (
+            (product.product_name if product else "")
+            or (alias.product_name if alias else "")
+            or ""
+        )
+        category = (
+            (product.category if product else "")
+            or (alias.category if alias else "")
+            or ""
+        )
+        uom = (
+            (product.uom if product else "")
+            or (alias.uom if alias else "")
+            or "EA"
+        )
+
+        result_rows.append({
+            "queue_id": r.queue_id,
+            "po_no": r.po_no,
+            "pallet_id": r.pallet_id,
+            "sku": r.sku,
+            "barcode": r.barcode,
+            "product_name": product_name,
+            "category": category,
+            "uom": uom,
+            "pcb": pcb,
+            "qty_gr": r.qty_gr,
+            "qty_promo": 0,
+            "qty_total": r.qty_gr or 0,
+            "qty_remain_putaway": r.qty_remain_putaway,
+            "flow_status": r.flow_status,
+        })
+
+    return result_rows
 
 
 

@@ -90,49 +90,14 @@ def gr_history(
     db: Session = Depends(get_db),
 ):
     try:
-        rows = svc.get_gr_history_by_po(db, po_no.strip())
-        result_rows = []
-
-        for r in rows:
-            product_name = ""
-            category = ""
-            uom = "EA"
-            pcb = 1
-
-            # Enrich history from master data so GR edit uses the correct PCB,
-            # not the frontend fallback value = 1.
-            try:
-                product_info = svc.get_product_scan_info(db, (r.barcode or "").strip())
-                product_name = product_info.get("product_name") or ""
-                category = product_info.get("category") or ""
-                uom = product_info.get("uom") or "EA"
-                pcb = int(product_info.get("pcb") or 1)
-            except Exception:
-                # Do not fail GR history if master data is missing/dirty.
-                pcb = 1
-
-            result_rows.append({
-                "queue_id": r.queue_id,
-                "po_no": r.po_no,
-                "pallet_id": r.pallet_id,
-                "sku": r.sku,
-                "barcode": r.barcode,
-                "product_name": product_name,
-                "category": category,
-                "uom": uom,
-                "pcb": pcb,
-                "qty_gr": r.qty_gr,
-                "qty_promo": 0,
-                "qty_total": r.qty_gr or 0,
-                "qty_remain_putaway": r.qty_remain_putaway,
-                "flow_status": r.flow_status,
-            })
-
-        return ok({"rows": result_rows})
+        # Performance: service đã enrich master data bằng bulk query.
+        # Tránh gọi get_product_scan_info cho từng dòng history vì gây N+1 query và làm PDA chậm.
+        return ok({"rows": svc.get_gr_history_payload_fast(db, po_no.strip())})
     except Exception as e:
         return fail(e)
 
-    
+
+
 
 @router.post("/gr/update-qty")
 def gr_update_qty(

@@ -773,7 +773,7 @@ function escapeHtml(value) {
     const formats = getFormats(targetInputId);
 
     const config = {
-      fps: 15,
+      fps: 8,
       qrbox: function (viewfinderWidth, viewfinderHeight) {
         const widthRatio = isProductBarcode ? 0.88 : 0.72;
         const heightRatio = isProductBarcode ? 0.26 : 0.52;
@@ -1060,8 +1060,12 @@ function restoreManualInput(targetInput) {
       resultTitle.innerText = "";
       resultText.innerHTML = "";
 
-      await loadHistory();
-      await loadPoDetail();
+      // Tránh reload bảng sau Confirm PA; user chỉ cần scan PA tiếp theo.
+      // Khi cần xem danh sách/đối chiếu, dùng nút refresh trong từng khu vực.
+      Object.keys(grHistoryRows || {}).forEach(function (key) {
+        const row = grHistoryRows[key];
+        if (row && row.pallet_id === palletId) row.flow_status = "WAIT_PUTAWAY";
+      });
 
       palletInput.value = "";
       barcodeInput.value = "";
@@ -1101,13 +1105,9 @@ function restoreManualInput(targetInput) {
         return showError(saveResult.error || "Không tự lưu được SKU vào PA trước khi Confirm PA");
       }
 
-      await loadHistory();
-      await loadPoDetail();
-      const currentSummary = getCurrentPaSummary(poNo, palletId);
-      if (currentSummary.totalSku <= 0 || currentSummary.totalQty <= 0) {
-        return showError("PA chưa có SKU hoặc số lượng GR. Hãy scan barcode và nhập số lượng trước khi Confirm PA.");
-      }
-
+      // Không reload history/PO detail trước popup vì đây là 2 API nặng trên PDA.
+      // Backend /complete-pa vẫn là nơi kiểm tra PA có SKU/SL hợp lệ.
+      // Nếu vừa auto-save dòng hiện tại thì cacheGrLine đã đủ để popup hiển thị tổng PA.
       openCompleteModal(poNo, palletId);
     });
   }
@@ -1260,8 +1260,11 @@ function restoreManualInput(targetInput) {
     const poNo = poInput.value.trim();
     if (!poNo) return showError("Vui lòng nhập/scan PO trước khi xác nhận PO");
 
-    await loadHistory();
-    await loadPoDetail();
+    // Chỉ tải PO detail khi chưa có summary cho PO hiện tại.
+    // Không tải history trước popup Confirm PO vì history có thể nhiều dòng và gây chậm trên điện thoại.
+    if (!latestPoSummary || String(latestPoSummary.po_no || "") !== String(poNo)) {
+      await loadPoDetail();
+    }
     openConfirmPoModal(poNo);
   }
 
